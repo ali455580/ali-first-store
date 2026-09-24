@@ -16,7 +16,6 @@ if (!firebase.apps.length) {
 
 const db = firebase.firestore();
 
-// 🟢 تعديل رئيسي: حل مشكلة البطء وأخطاء WebChannel Connection الموضحة في شاشتك
 db.settings({
     experimentalAutoDetectLongPolling: true,
     merge: true
@@ -29,7 +28,6 @@ const ordersCol = db.collection('orders');
 const chatsCol = db.collection('chats');
 const userNotifCol = db.collection('userNotifications');
 
-// 🟢 إضافة قسم "ألكترونيات" افتراضياً ضمن الأقسام
 let categories = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
 let products = [];
 let orders = [];
@@ -44,6 +42,7 @@ let cart = [];
 let currentCategory = 'الكل';
 let searchQuery = '';
 let tempImages = [];
+let editingProductId = null; // للتتبع عند تعديل المنتجات
 let logoClickCount = 0;
 let logoClickTimer = null;
 let lastRenderedNotifKey = '';
@@ -147,7 +146,7 @@ function setupSecretTriggers() {
 }
 
 /* ==========================================
-   نظام التنبيهات الثابت
+   نظام التنبيهات
    ========================================== */
 function showNotification(msg, type = 'info') {
     const alreadyShown = siteNotifications.some(n => n && n.message === msg && n.type === type);
@@ -362,7 +361,7 @@ function handleSearch(value) {
 }
 
 /* ==========================================
-   معالجة وتصغير الصور
+   معالجة الصور
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
@@ -492,7 +491,7 @@ function openProductDetails(id) {
         <span class="product-category-tag">${p.category || ''}</span>
         <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}" style="position:static; display:inline-block; margin-right:6px;">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
         <h2 style="margin:8px 0; color:var(--primary-color);">${p.name || ''}</h2>
-        <p style="margin:10px 0; color:var(--text-muted); line-height:1.8;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
+        <p style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
         <div class="price" style="font-size:1.4rem;">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
         <button class="btn-gold" style="width:100%; margin-top:10px;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
             <i class="fa-solid fa-cart-plus"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر حالياً'}
@@ -591,6 +590,7 @@ function handleCheckout(e) {
         delivery,
         total: subtotal + delivery,
         status: 'قيد المراجعة ⏳',
+        completed: false,
         date: new Date().toLocaleString('ar-IQ'),
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -607,7 +607,7 @@ function handleCheckout(e) {
         toggleModal('cart-modal');
         document.getElementById('checkout-form').reset();
 
-        showNotification("تم إرسال طلبك بنجاح! (شامل سعر التوصيل 5,000 د.ع)", 'success');
+        showNotification("تم إرسال طلبك بنجاح!", 'success');
         checkUserOrderStatus();
     }).catch(err => {
         console.error(err);
@@ -669,64 +669,94 @@ function scrollToOrdersSection() {
     if (section) section.scrollIntoView({ behavior: 'smooth' });
 }
 
-function scrollToChatSection() {
-    const section = document.getElementById('admin-chat-section');
-    if (section) section.scrollIntoView({ behavior: 'smooth' });
-}
-
+/* ==========================================
+   إدارة الطلبات والوارد والطلبات المكتملة
+   ========================================== */
 function renderOrders() {
-    const list = document.getElementById('admin-orders-list');
+    const incomingList = document.getElementById('admin-orders-list');
+    const completedList = document.getElementById('admin-completed-orders-list');
     const notifCount = document.getElementById('admin-notif-count');
-    if (!list) return;
+    
+    if (!incomingList) return;
 
-    const pendingOrders = orders.filter(o => o && o.status && typeof o.status === 'string' && o.status.includes('المراجعة'));
+    const pendingOrders = orders.filter(o => o && !o.completed && o.status && typeof o.status === 'string' && o.status.includes('المراجعة'));
     if (notifCount) notifCount.innerText = pendingOrders.length;
 
-    list.innerHTML = orders.length === 0 ? '<p>لا توجد طلبات واردة حتى الآن.</p>' : '';
+    const activeOrders = orders.filter(o => o && !o.completed);
+    const finishedOrders = orders.filter(o => o && o.completed);
 
-    orders.forEach(o => {
-        if (!o) return;
-        let itemsHtml = Array.isArray(o.items) ? o.items.map(i => i ? i.name : '').join(' ، ') : '';
-        list.innerHTML += `
-            <div class="order-box" style="background:#fff; border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h4>طلب من: ${o.name || ''} (${o.phone || ''})</h4>
-                    <span style="font-size:0.8rem; background:#eee; padding:2px 8px; border-radius:4px;">${o.date || ''}</span>
-                </div>
-                <p style="margin:5px 0;"><b>العنوان:</b> ${o.address || ''}</p>
-                <p style="margin:5px 0;"><b>الأجهزة:</b> ${itemsHtml}</p>
-                <p style="margin:5px 0;"><b>المجموع الفرعي:</b> ${(o.subtotal ?? o.total ?? 0).toLocaleString('ar-IQ')} د.ع</p>
-                <p style="margin:5px 0;"><b>التوصيل:</b> ${(o.delivery ?? 0).toLocaleString('ar-IQ')} د.ع</p>
-                <p style="margin:5px 0;"><b>المبلغ الكلي:</b> ${(o.total || 0).toLocaleString('ar-IQ')} د.ع</p>
-                <p style="margin:5px 0;"><b>الحالة الحالية:</b> <span style="color:#e67e22; font-weight:bold;">${o.status || 'قيد المراجعة'}</span></p>
-
-                <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-                    <button class="btn-success" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تمت الموافقة ✅')">
-                        <i class="fa-solid fa-check"></i> موافقة
-                    </button>
-                    <button class="btn-danger" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تم رفض الطلب ❌')">
-                        <i class="fa-solid fa-xmark"></i> رفض
-                    </button>
-                    <button class="btn-gold" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'جاري الشحن 🚚')">
-                        <i class="fa-solid fa-truck"></i> شحن
-                    </button>
-                </div>
-            </div>
-        `;
+    // عرض الطلبات الواردة
+    incomingList.innerHTML = activeOrders.length === 0 ? '<p style="padding:10px; color:#666;">لا توجد طلبات واردة حالياً.</p>' : '';
+    activeOrders.forEach(o => {
+        incomingList.innerHTML += createOrderBoxHTML(o, false);
     });
+
+    // عرض الطلبات المكتملة
+    if (completedList) {
+        completedList.innerHTML = finishedOrders.length === 0 ? '<p style="padding:10px; color:#666;">لا توجد طلبات مكتملة بعد.</p>' : '';
+        finishedOrders.forEach(o => {
+            completedList.innerHTML += createOrderBoxHTML(o, true);
+        });
+    }
+}
+
+function createOrderBoxHTML(o, isCompleted) {
+    let itemsHtml = Array.isArray(o.items) ? o.items.map(i => i ? i.name : '').join(' ، ') : '';
+    return `
+        <div class="order-box" style="background:#fff; border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:8px; position:relative;">
+            <button onclick="deleteOrder('${o.id}')" title="حذف الطلب نهائياً" style="position:absolute; top:10px; left:10px; background:#e74c3c; color:#fff; border:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding-left:30px;">
+                <h4>طلب من: ${o.name || ''} (${o.phone || ''})</h4>
+                <span style="font-size:0.8rem; background:#eee; padding:2px 8px; border-radius:4px;">${o.date || ''}</span>
+            </div>
+            <p style="margin:5px 0;"><b>العنوان:</b> ${o.address || ''}</p>
+            <p style="margin:5px 0;"><b>الأجهزة:</b> ${itemsHtml}</p>
+            <p style="margin:5px 0;"><b>المبلغ الكلي:</b> ${(o.total || 0).toLocaleString('ar-IQ')} د.ع</p>
+            <p style="margin:5px 0;"><b>الحالة:</b> <span style="color:#e67e22; font-weight:bold;">${o.status || 'قيد المراجعة'}</span></p>
+
+            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn-success" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تمت الموافقة ✅')">موافقة</button>
+                <button class="btn-danger" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تم رفض الطلب ❌')">رفض</button>
+                <button class="btn-gold" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'جاري الشحن 🚚')">شحن</button>
+                
+                ${!isCompleted ? `
+                    <button class="btn-action" style="padding:4px 10px; font-size:0.85rem; background:#27ae60; color:#fff;" onclick="toggleOrderCompleted('${o.id}', true)">
+                        <i class="fa-solid fa-check"></i> نقل للمكتملة
+                    </button>
+                ` : `
+                    <button class="btn-action" style="padding:4px 10px; font-size:0.85rem; background:#7f8c8d; color:#fff;" onclick="toggleOrderCompleted('${o.id}', false)">
+                        إعادة للواردة
+                    </button>
+                `}
+            </div>
+        </div>
+    `;
 }
 
 function quickUpdateStatus(orderId, newStatus) {
-    const order = orders.find(o => o && o.id === orderId);
     ordersCol.doc(orderId).update({ status: newStatus }).then(() => {
         addUserNotification(orderId, "تحديث حالة الطلب", `تم تغيير حالة طلبك إلى: (${newStatus})`);
-        showNotification(`تم تغيير حالة طلب (${order ? order.name : ''}) إلى: ${newStatus}`, 'info');
-    }).catch(err => {
-        console.error(err);
-        showNotification("تعذر تحديث حالة الطلب", 'danger');
-    });
+        showNotification(`تم تغيير حالة الطلب إلى: ${newStatus}`, 'info');
+    }).catch(err => console.error(err));
 }
 
+function toggleOrderCompleted(orderId, isCompleted) {
+    ordersCol.doc(orderId).update({ completed: isCompleted }).then(() => {
+        showNotification(isCompleted ? "تم نقل الطلب إلى قسم (الطلبات المكتملة)" : "تمت إعادة الطلب إلى الطلبات الواردة", 'success');
+    }).catch(err => console.error(err));
+}
+
+function deleteOrder(orderId) {
+    if (confirm("هل أنت تأكد من رغبتك في حذف هذا الطلب نهائياً؟")) {
+        ordersCol.doc(orderId).delete().then(() => {
+            showNotification("تم حذف الطلب بنجاح ✕", 'danger');
+        }).catch(err => console.error(err));
+    }
+}
+
+/* ==========================================
+   إضافة وتعديل المنتجات
+   ========================================== */
 function handleAddProduct(e) {
     e.preventDefault();
     const name = document.getElementById('p-name').value;
@@ -735,25 +765,63 @@ function handleAddProduct(e) {
     const descEl = document.getElementById('p-description');
     const description = descEl ? descEl.value.trim() : '';
 
-    const newProd = {
-        name,
-        price,
-        category,
-        description,
-        images: tempImages.length ? [...tempImages] : ['https://via.placeholder.com/200'],
-        available: true,
-        order: Date.now()
-    };
+    if (editingProductId) {
+        // وضع التعديل
+        const updateData = { name, price, category, description };
+        if (tempImages.length) updateData.images = [...tempImages];
 
-    productsCol.add(newProd).then(() => {
-        showNotification("تمت إضافة المنتج بنجاح!", 'success');
-        document.getElementById('add-product-form').reset();
-        tempImages = [];
-        renderImagePreviews();
-    }).catch(err => {
-        console.error(err);
-        showNotification("تعذر الحفظ: اختر صوراً أقل حجماً وحاول مرة أخرى.", 'danger');
-    });
+        productsCol.doc(editingProductId).update(updateData).then(() => {
+            showNotification("تم تعديل المنتج بنجاح! ✏️", 'success');
+            resetProductForm();
+        }).catch(err => console.error(err));
+    } else {
+        // وضع الإضافة
+        const newProd = {
+            name,
+            price,
+            category,
+            description,
+            images: tempImages.length ? [...tempImages] : ['https://via.placeholder.com/200'],
+            available: true,
+            order: Date.now()
+        };
+
+        productsCol.add(newProd).then(() => {
+            showNotification("تمت إضافة المنتج بنجاح!", 'success');
+            resetProductForm();
+        }).catch(err => console.error(err));
+    }
+}
+
+function startEditProduct(id) {
+    const p = products.find(prod => prod && prod.id === id);
+    if (!p) return;
+
+    editingProductId = id;
+    document.getElementById('p-name').value = p.name || '';
+    document.getElementById('p-price').value = p.price || '';
+    document.getElementById('p-category').value = p.category || categories[1] || '';
+    
+    const descEl = document.getElementById('p-description');
+    if (descEl) descEl.value = p.description || '';
+
+    tempImages = getProductImages(p);
+    renderImagePreviews();
+
+    const submitBtn = document.getElementById('save-product-btn');
+    if (submitBtn) submitBtn.innerText = 'حفظ التعديلات ✏️';
+
+    scrollToAdminPanel();
+    showNotification(`أنت الآن تقوم بتعديل منتج: (${p.name})`, 'info');
+}
+
+function resetProductForm() {
+    editingProductId = null;
+    document.getElementById('add-product-form').reset();
+    tempImages = [];
+    renderImagePreviews();
+    const submitBtn = document.getElementById('save-product-btn');
+    if (submitBtn) submitBtn.innerText = 'إضافة المنتج';
 }
 
 function renderAdminList() {
@@ -771,10 +839,11 @@ function renderAdminList() {
                     </span>
                 </span>
                 <div>
+                    <button class="btn-action" style="padding:3px 8px; background:#f39c12; color:#fff;" onclick="startEditProduct('${p.id}')">تعديل ✏️</button>
                     <button onclick="moveProduct('${p.id}', -1)">▲</button>
                     <button onclick="moveProduct('${p.id}', 1)">▼</button>
                     <button class="${isAvailable ? 'btn-danger' : 'btn-success'}" onclick="toggleAvailability('${p.id}')">
-                        ${isAvailable ? 'إيقاف التوفر' : 'تفعيل التوفر'}
+                        ${isAvailable ? 'إيقاف' : 'تفعيل'}
                     </button>
                     <button class="btn-danger" onclick="deleteProduct('${p.id}')">حذف</button>
                 </div>
@@ -789,10 +858,7 @@ function toggleAvailability(id) {
 
     const newVal = p.available === false;
     productsCol.doc(id).update({ available: newVal }).then(() => {
-        showNotification(
-            `تنبيه: المنتج (${p.name}) أصبح ${newVal ? 'متوفراً الآن ✅' : 'غير متوفر حالياً ❌'}`,
-            newVal ? 'success' : 'danger'
-        );
+        showNotification(`المنتج (${p.name}) أصبح ${newVal ? 'متوفراً ✅' : 'غير متوفر ❌'}`, newVal ? 'success' : 'danger');
     }).catch(err => console.error(err));
 }
 
@@ -813,9 +879,11 @@ function moveProduct(id, dir) {
 }
 
 function deleteProduct(id) {
-    productsCol.doc(id).delete().then(() => {
-        showNotification("تم حذف المنتج", 'danger');
-    }).catch(err => console.error(err));
+    if (confirm("هل تريد حذف هذا المنتج؟")) {
+        productsCol.doc(id).delete().then(() => {
+            showNotification("تم حذف المنتج", 'danger');
+        }).catch(err => console.error(err));
+    }
 }
 
 /* ==========================================
@@ -826,9 +894,7 @@ function toggleChat() {
     if (chat) chat.classList.toggle('hidden');
 
     const savedName = localStorage.getItem('ali_chat_customer_name');
-    if (savedName) {
-        showChatInterface();
-    }
+    if (savedName) showChatInterface();
 
     renderUserChatModal();
 }

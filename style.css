@@ -1,3 +1,6 @@
+/* ==========================================
+   المتغيرات الأساسية والتصميم العام
+   ========================================== */
 :root {
     --primary-color: #1a252f;
     --secondary-color: #2c3e50;
@@ -33,7 +36,9 @@ body {
     margin: 0 auto;
 }
 
-/* الهيدر */
+/* ==========================================
+   الهيدر وشريط البحث
+   ========================================== */
 .main-header {
     background: var(--primary-color);
     color: #fff;
@@ -52,17 +57,25 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 15px;
+    flex-wrap: wrap;
 }
 
 .logo-area {
     display: flex;
     align-items: center;
     gap: 10px;
+    cursor: pointer;
 }
 
 .logo-icon {
     font-size: 1.6rem;
     color: var(--accent-gold);
+}
+
+.logo-area h1 {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #fff;
 }
 
 .search-box {
@@ -77,6 +90,8 @@ body {
     border-radius: 20px;
     border: none;
     outline: none;
+    background: #fff;
+    font-size: 0.9rem;
 }
 
 .search-box i {
@@ -85,6 +100,12 @@ body {
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .icon-btn {
@@ -96,6 +117,14 @@ body {
     border-radius: 50%;
     cursor: pointer;
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.3s;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .icon-btn .badge {
@@ -107,9 +136,12 @@ body {
     font-size: 0.75rem;
     padding: 2px 6px;
     border-radius: 10px;
+    font-weight: bold;
 }
 
-/* الأقسام */
+/* ==========================================
+   شريط الأقسام (Categories)
+   ========================================== */
 .categories-bar {
     background: #fff;
     border-bottom: 1px solid #e2e8f0;
@@ -121,6 +153,8 @@ body {
     display: flex;
     gap: 10px;
     overflow-x: auto;
+    padding-bottom: 5px;
+    white-space: nowrap;
 }
 
 .cat-btn {
@@ -128,8 +162,11 @@ body {
     border: none;
     padding: 8px 18px;
     border-radius: 20px;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
-    white-space: nowrap;
+    transition: 0.3s;
 }
 
 .cat-btn.active, .cat-btn:hover {
@@ -137,10 +174,16 @@ body {
     color: #fff;
 }
 
-/* شبكة المنتجات */
+/* ==========================================
+   شبكة المنتجات (Grid Layout)
+   ========================================== */
+.main-content {
+    padding-bottom: 40px;
+}
+
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 20px;
 }
 
@@ -149,41 +192,89 @@ body {
     border-radius: var(--border-radius);
     overflow: hidden;
     box-shadow: var(--box-shadow);
+    transition: transform 0.3s, box-shadow 0.3s;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     border: 1px solid #eef2f5;
 }
 
+.product-card:hover {
+    transform: translateY(-50px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
 .product-img-wrap {
     position: relative;
     width: 100%;
-    height: 180px;
+    height: 200px;
     background: #f8fafc;
+    overflow: hidden;
 }
 
 .product-img-wrap img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s;
 }
+
+.product-card:hover .product-img-wrap img {
+    transform: scale(1.05);
+}
+
+.stock-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+.stock-badge.in-stock { background: var(--success-color); }
+.stock-badge.out-stock { background: var(--danger-color); }
 
 .product-info {
     padding: 15px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.product-category-tag {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    display: block;
 }
 
 .product-info h3 {
-    font-size: 0.95rem;
-    font-weight: bold;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-dark);
     margin-bottom: 8px;
+    line-height: 1.4;
+    height: 2.8em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .product-info .price {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: bold;
     color: var(--primary-color);
+    margin-bottom: 12px;
+    margin-top: auto;
 }
 
+/* ==========================================
+   الأزرار التصميم الجديد
+   ========================================== */
 .btn-gold {
     background: var(--accent-gold);
     color: #fff;
@@ -192,63 +283,90 @@ body {
     border-radius: 8px;
     font-weight: bold;
     cursor: pointer;
-    width: 100%;
-    margin-top: 10px;
-}
-
-/* النافذة المنبثقة وزر الإغلاق X البارز */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    z-index: 2000;
-}
-
-.modal-content {
-    background: #fff;
-    width: 90%;
-    max-width: 450px;
-    margin: 8% auto;
-    border-radius: var(--border-radius);
-    position: relative;
-    overflow: hidden;
-}
-
-/* زر الإغلاق X واضح ومحدد دائرياً فوق الصور */
-.close-btn {
-    position: absolute;
-    left: 12px;
-    top: 12px;
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    color: #ffffff;
-    background: rgba(0, 0, 0, 0.6);
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
+    transition: background 0.3s;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    transition: 0.2s;
+    gap: 6px;
+    font-size: 0.9rem;
 }
 
-.close-btn:hover {
-    background: #e74c3c;
+.btn-gold:hover {
+    background: var(--gold-hover);
+}
+
+.btn-action {
+    background: var(--secondary-color);
     color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* ==========================================
+   الإشعارات ولوحة التحكم والتنسيق المتقدم
+   ========================================== */
+.notification-container {
+    position: fixed;
+    top: 70px;
+    left: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 320px;
+}
+
+.site-notice {
+    background: #fff;
+    border-right: 4px solid var(--accent-gold);
+    padding: 12px 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
 }
 
 .admin-section {
     background: #fff;
-    padding: 20px;
     border-radius: var(--border-radius);
-    margin: 30px auto;
+    padding: 20px;
+    margin-top: 30px;
+    box-shadow: var(--box-shadow);
+}
+
+.admin-block {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.admin-block h3 {
+    margin-bottom: 12px;
+    color: var(--primary-color);
+    font-size: 1.1rem;
 }
 
 .form-group {
@@ -262,4 +380,122 @@ body {
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+}
+
+.modal-content {
+    background: #fff;
+    width: 90%;
+    max-width: 500px;
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: var(--border-radius);
+    position: relative;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.close-btn {
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #777;
+}
+
+.chat-widget {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1500;
+}
+
+.chat-trigger-btn {
+    background: var(--primary-color);
+    color: #fff;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.chat-box {
+    position: fixed;
+    bottom: 80px;
+    left: 20px;
+    width: 300px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    overflow: hidden;
+}
+
+.chat-header {
+    background: var(--primary-color);
+    color: #fff;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.chat-body {
+    padding: 12px;
+    height: 220px;
+    overflow-y: auto;
+}
+
+.chat-footer {
+    display: flex;
+    padding: 8px;
+    border-top: 1px solid #eee;
+}
+
+.chat-footer input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+.hidden { display: none !important; }
+
+/* ==========================================
+   التكيف مع الشاشات الصغيرة (Mobile Responsive)
+   ========================================== */
+@media (max-width: 600px) {
+    .products-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    .product-img-wrap {
+        height: 140px;
+    }
+    .product-info {
+        padding: 10px;
+    }
+    .product-info h3 {
+        font-size: 0.85rem;
+        height: 2.6em;
+    }
+    .product-info .price {
+        font-size: 0.95rem;
+    }
+    .btn-gold {
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
 }

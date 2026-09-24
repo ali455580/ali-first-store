@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متجر علي الأول</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- الهيدر العلوي -->
+    <header>
+        <div class="container header-container">
+            <div class="logo" id="admin-secret-trigger" style="cursor: pointer; user-select: none;">
+                <i class="fa-solid fa-store"></i> متجر علي الأول
+            </div>
+            <div class="nav-buttons">
+                <button class="btn-action" onclick="toggleModal('cart-modal')">
+                    <i class="fa-solid fa-cart-shopping"></i> السلة <span id="cart-count" class="badge">0</span>
+                </button>
+
+                <!-- زر طلباتي للزبون -->
+                <button class="btn-action" onclick="toggleModal('my-orders-modal')">
+                    <i class="fa-solid fa-clipboard-list"></i> طلباتي
+                </button>
+
+                <button class="btn-action" onclick="toggleModal('user-notif-modal')" style="position: relative;">
+                    <i class="fa-solid fa-bell"></i> الإشعارات <span id="user-notif-count" class="badge" style="background:#e74c3c;">0</span>
+                </button>
+
+                <button id="admin-notif-btn" class="btn-action hidden" onclick="scrollToOrdersSection()" style="background:#f39c12; color:white;">
+                    <i class="fa-solid fa-receipt"></i> الطلبات <span id="admin-notif-count" class="badge" style="background:#e74c3c;">0</span>
+                </button>
+
+                <!-- زر إشعارات رسائل الدردشة (خاص بالمسؤول) -->
+                <button id="admin-chat-notif-btn" class="btn-action hidden" onclick="scrollToChatSection()" style="background:#3498db; color:white;">
+                    <i class="fa-solid fa-comment-dots"></i> رسائل <span id="admin-chat-notif-count" class="badge" style="background:#e74c3c;">0</span>
+                </button>
+
+                <button id="admin-control-btn" class="btn-action hidden" onclick="scrollToAdminPanel()">
+                    <i class="fa-solid fa-sliders"></i> لوحة التحكم
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- منطقة التنبيهات الثابتة -->
+    <div id="notification-area"></div>
+
+    <main class="container">
+        <div id="order-status-banner" class="hidden"></div>
+
+        <div class="search-bar">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="search-input" placeholder="ابحث عن جهاز..." oninput="handleSearch(this.value)">
+        </div>
+
+        <div class="categories-bar">
+            <div id="categories-filter"></div>
+        </div>
+
+        <h2 style="margin: 15px 0 10px 0; font-size: 1.3rem;">الأجهزة المتاحة</h2>
+        <div id="products-grid" class="grid"></div>
+    </main>
+
+    <!-- زر المحادثة العائم للزبون -->
+    <button class="chat-float-btn" onclick="toggleChat()" style="position:fixed;">
+        <i class="fa-solid fa-comments"></i> تواصل
+        <span id="chat-unread-badge" class="badge hidden" style="position:absolute; top:-6px; right:-6px; background:#e74c3c;">0</span>
+    </button>
+
+    <!-- صندوق المحادثة المباشرة -->
+    <div id="chat-modal" class="chat-box hidden">
+        <div class="chat-header">
+            <span><i class="fa-solid fa-headset"></i> خدمة العملاء</span>
+            <span class="close" onclick="toggleChat()" style="position:static; font-size:16px;">&times;</span>
+        </div>
+
+        <div id="chat-name-gate" style="padding:15px; text-align:center;">
+            <p style="margin-bottom:10px; font-size:0.9rem; color:var(--text-muted);">الرجاء إدخال اسمك للبدء بالمحادثة</p>
+            <input type="text" id="chat-cust-name" class="form-input" placeholder="اكتب اسمك هنا...">
+            <button class="btn-gold" style="width:100%; justify-content:center;" onclick="startChatWithName()">بدء المحادثة</button>
+        </div>
+
+        <div id="chat-messages" class="chat-messages hidden"></div>
+        <div id="chat-input-wrap" class="chat-input-area hidden">
+            <input type="text" id="chat-input" placeholder="اكتب رسالتك..." onkeypress="handleChatKeyPress(event)">
+            <button class="btn-gold" onclick="sendUserMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- نافذة إشعارات الزبون المنبثقة -->
+    <div id="user-notif-modal" class="modal">
+        <div class="modal-content" style="max-width:400px;">
+            <span class="close" onclick="toggleModal('user-notif-modal')">&times;</span>
+            <h3 style="margin-bottom:12px;"><i class="fa-solid fa-bell"></i> مركز الإشعارات</h3>
+            <div id="user-notifications-list" style="max-height: 300px; overflow-y: auto;">
+                <p style="text-align:center; color:#777;">لا توجد إشعارات جديدة حالياً.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة طلبات الزبون -->
+    <div id="my-orders-modal" class="modal">
+        <div class="modal-content" style="max-width:500px;">
+            <span class="close" onclick="toggleModal('my-orders-modal')">&times;</span>
+            <h3 style="margin-bottom:12px;"><i class="fa-solid fa-clipboard-list"></i> طلباتي</h3>
+            <div id="my-orders-list" style="max-height: 400px; overflow-y: auto;">
+                <p style="text-align:center; color:#777;">لا توجد طلبات سابقة.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تفاصيل المنتج -->
+    <div id="product-detail-modal" class="modal">
+        <div class="modal-content" style="max-width:550px;">
+            <span class="close" onclick="toggleModal('product-detail-modal')">&times;</span>
+            <div id="product-detail-body"></div>
+        </div>
+    </div>
+
+    <!-- نافذة السلة -->
+    <div id="cart-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="toggleModal('cart-modal')">&times;</span>
+            <h2>سلة المشتريات</h2>
+            <div id="cart-items" style="margin: 15px 0;"></div>
+            <hr>
+            <div class="cart-summary-row"><span>المجموع الفرعي:</span> <span><span id="cart-subtotal">0</span> د.ع</span></div>
+            <div class="cart-summary-row"><span>سعر التوصيل:</span> <span><span id="cart-delivery">0</span> د.ع</span></div>
+            <p style="margin: 10px 0; font-weight: bold; font-size:1.1rem;">المجموع الكلي: <span id="cart-total">0</span> د.ع</p>
+            <p style="font-size:0.85rem; color:var(--text-muted); background:#fff8e6; padding:8px; border-radius:6px; border-right:3px solid var(--accent-gold); margin-bottom:10px;">
+                <i class="fa-solid fa-circle-info"></i> ملاحظة: يُضاف سعر توصيل قدره 5,000 د.ع على مجموع الطلب.
+            </p>
+
+            <form id="checkout-form" onsubmit="handleCheckout(event)">
+                <input type="text" id="cust-name" class="form-input" placeholder="الاسم الكامل" required>
+                <input type="tel" id="cust-phone" class="form-input" placeholder="رقم الهاتف" required>
+                <textarea id="cust-address" class="form-input" placeholder="العنوان بالتفصيل" required></textarea>
+                <button type="submit" class="btn-primary" style="margin-top:10px;">إرسال الطلب الآن</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- نافذة دخول الأدمن السرية -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content" style="max-width:350px;">
+            <span class="close" onclick="toggleModal('login-modal')">&times;</span>
+            <h3 style="margin-bottom:12px;">تسجيل دخول المسؤول</h3>
+            <input type="password" id="admin-password" class="form-input" placeholder="أدخل كلمة المرور السرية">
+            <button class="btn-primary" onclick="loginAdmin()" style="margin-top:10px;">دخول</button>
+        </div>
+    </div>
+
+    <!-- لوحة إدارة الموقع -->
+    <div id="admin-panel" class="admin-panel hidden">
+        <div class="container">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>لوحة إدارة الموقع</h2>
+                <button class="btn-danger" onclick="logoutAdmin()">خروج وإخفاء اللوحة</button>
+            </div>
+
+            <div class="admin-grid">
+                <div class="admin-card">
+                    <h3>إدارة الأقسام</h3>
+                    <div style="display:flex; gap:8px; margin: 10px 0;">
+                        <input type="text" id="new-cat-name" class="form-input" placeholder="اسم القسم الجديد">
+                        <button class="btn-success" onclick="addCategory()">إضافة قسم</button>
+                    </div>
+                    <div id="admin-categories-list"></div>
+                </div>
+
+                <div class="admin-card">
+                    <h3>ألوان الموقع</h3>
+                    <div style="display:flex; gap:15px; margin-top:10px;">
+                        <label>تغيير اللون الرئيسي: <input type="color" onchange="changeThemeColor(this.value, 'primary')"></label>
+                        <label>تغيير اللون الثانوي: <input type="color" onchange="changeThemeColor(this.value, 'secondary')"></label>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h3>إضافة منتج جديد</h3>
+                    <form id="add-product-form" onsubmit="handleAddProduct(event)">
+                        <input type="text" id="p-name" class="form-input" placeholder="اسم الجهاز" required>
+                        <input type="number" id="p-price" class="form-input" placeholder="السعر بالدينار العراقي (د.ع)" required>
+                        <select id="p-category" class="form-input" required></select>
+                        <textarea id="p-description" class="form-input" placeholder="وصف تفصيلي للمنتج (المواصفات، الضمان...الخ)" rows="3"></textarea>
+                        <div class="file-upload">
+                            <label for="p-image-file"><i class="fa-solid fa-upload"></i> اختيار صور المنتج (يمكن اختيار أكثر من صورة)</label>
+                            <input type="file" id="p-image-file" accept="image/*" multiple onchange="previewImage(event)">
+                        </div>
+                        <div id="img-preview-box" class="hidden" style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+                        <button type="submit" class="btn-success" style="width:100%;">إضافة المنتج للمتجر</button>
+                    </form>
+                </div>
+
+                <div class="admin-card" id="admin-orders-section">
+                    <h3>🔔 الطلبات الواردة والإشعارات</h3>
+                    <div id="admin-orders-list"></div>
+                </div>
+
+                <div class="admin-card" id="admin-chat-section">
+                    <h3>رسائل الدردشة الواردة</h3>
+                    <select id="chat-customer-select" class="form-input" onchange="renderAdminChat()">
+                        <option value="">اختر الزبون...</option>
+                    </select>
+                    <div id="admin-chat-messages" style="height:120px; overflow-y:auto; background:#fff; padding:8px; border:1px solid #ddd; margin-bottom:8px;"></div>
+              

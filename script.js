@@ -9,8 +9,18 @@ const firebaseConfig = {
     messagingSenderId: "1043684903047",
     appId: "1:1043684903047:web:fbdcc1638aed65a3999022"
 };
-firebase.initializeApp(firebaseConfig);
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
 const db = firebase.firestore();
+
+// 🟢 تعديل رئيسي: حل مشكلة البطء وأخطاء WebChannel Connection الموضحة في شاشتك
+db.settings({
+    experimentalAutoDetectLongPolling: true,
+    merge: true
+});
 
 const productsCol = db.collection('products');
 const categoriesDoc = db.collection('meta').doc('categories');
@@ -19,7 +29,8 @@ const ordersCol = db.collection('orders');
 const chatsCol = db.collection('chats');
 const userNotifCol = db.collection('userNotifications');
 
-let categories = ['الكل', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
+// 🟢 إضافة قسم "ألكترونيات" افتراضياً ضمن الأقسام
+let categories = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
 let products = [];
 let orders = [];
 let chatMessages = [];
@@ -136,7 +147,7 @@ function setupSecretTriggers() {
 }
 
 /* ==========================================
-   نظام التنبيهات الثابت (تختفي تلقائياً بعد 10 ثوانٍ)
+   نظام التنبيهات الثابت
    ========================================== */
 function showNotification(msg, type = 'info') {
     const alreadyShown = siteNotifications.some(n => n && n.message === msg && n.type === type);
@@ -211,7 +222,7 @@ function checkUserOrderStatus() {
 }
 
 /* ==========================================
-   طلباتي (سجل طلبات الزبون)
+   سجل طلبات الزبون
    ========================================== */
 function getMyOrderIds() {
     return JSON.parse(localStorage.getItem('ali_my_order_ids')) || [];
@@ -286,9 +297,7 @@ function addUserNotification(orderId, title, message) {
         time: new Date().toLocaleTimeString('ar-IQ'),
         read: false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(err => {
-        console.error(err);
-    });
+    }).catch(err => console.error(err));
 }
 
 function renderCategories() {
@@ -353,17 +362,16 @@ function handleSearch(value) {
 }
 
 /* ==========================================
-   رفع صور متعددة للمنتج + تصغيرها تلقائياً + حذف كل صورة
+   معالجة وتصغير الصور
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
     tempImages = [];
-    renderImagePreviews();
 
     files.forEach(file => {
         const reader = new FileReader();
         reader.onload = function (e) {
-            resizeImage(e.target.result, 700, 0.6, function (resizedBase64) {
+            resizeImage(e.target.result, 500, 0.5, function (resizedBase64) {
                 tempImages.push(resizedBase64);
                 renderImagePreviews();
             });
@@ -466,9 +474,6 @@ function renderProducts() {
     });
 }
 
-/* ==========================================
-   تفاصيل المنتج
-   ========================================== */
 function openProductDetails(id) {
     const p = products.find(prod => prod && prod.id === id);
     if (!p) return;
@@ -527,9 +532,6 @@ function toggleModal(modalId) {
     }
 }
 
-/* ==========================================
-   السلة + سعر التوصيل
-   ========================================== */
 function renderCartModal() {
     const container = document.getElementById('cart-items');
     if (!container) return;
@@ -725,9 +727,6 @@ function quickUpdateStatus(orderId, newStatus) {
     });
 }
 
-/* ==========================================
-   إضافة منتج (صور متعددة + وصف + توفر)
-   ========================================== */
 function handleAddProduct(e) {
     e.preventDefault();
     const name = document.getElementById('p-name').value;
@@ -753,7 +752,7 @@ function handleAddProduct(e) {
         renderImagePreviews();
     }).catch(err => {
         console.error(err);
-        showNotification("تعذر الحفظ: قلل عدد/حجم الصور المختارة وحاول مرة أخرى.", 'danger');
+        showNotification("تعذر الحفظ: اختر صوراً أقل حجماً وحاول مرة أخرى.", 'danger');
     });
 }
 
@@ -761,7 +760,7 @@ function renderAdminList() {
     const list = document.getElementById('admin-products-list');
     if (!list) return;
     list.innerHTML = '';
-    products.forEach((p, index) => {
+    products.forEach((p) => {
         if (!p) return;
         const isAvailable = p.available !== false;
         list.innerHTML += `
@@ -788,7 +787,7 @@ function toggleAvailability(id) {
     const p = products.find(prod => prod && prod.id === id);
     if (!p) return;
 
-    const newVal = p.available === false ? true : false;
+    const newVal = p.available === false;
     productsCol.doc(id).update({ available: newVal }).then(() => {
         showNotification(
             `تنبيه: المنتج (${p.name}) أصبح ${newVal ? 'متوفراً الآن ✅' : 'غير متوفر حالياً ❌'}`,
@@ -820,11 +819,10 @@ function deleteProduct(id) {
 }
 
 /* ==========================================
-   الدردشة: يذكر الزبون اسمه أولاً
+   الدردشة المباشرة
    ========================================== */
 function toggleChat() {
     const chat = document.getElementById('chat-modal');
-    const isOpening = chat && chat.classList.contains('hidden');
     if (chat) chat.classList.toggle('hidden');
 
     const savedName = localStorage.getItem('ali_chat_customer_name');
@@ -833,19 +831,6 @@ function toggleChat() {
     }
 
     renderUserChatModal();
-
-    if (isOpening && savedName) {
-        const unread = chatMessages.filter(m => m && m.sender === 'admin' &&
-            (m.targetName === savedName || !m.targetName) && m.read === false);
-
-        if (unread.length > 0) {
-            const batch = db.batch();
-            unread.forEach(m => {
-                batch.update(chatsCol.doc(m.id), { read: true });
-            });
-            batch.commit().catch(err => console.error(err));
-        }
-    }
 }
 
 function startChatWithName() {
@@ -942,9 +927,6 @@ function updateChatUnreadBadge() {
 
 function handleChatKeyPress(e) { if (e.key === 'Enter') sendUserMessage(); }
 
-/* ==========================================
-   دردشة الأدمن: اختيار الزبون قبل الرد + شارة الرسائل غير المقروءة
-   ========================================== */
 function getChatCustomerNames() {
     const names = new Set();
     chatMessages.forEach(m => {

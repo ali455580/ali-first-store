@@ -404,14 +404,34 @@ body {
     max-height: 85vh;
     overflow-y: auto;
 }
-
+/* تحسين ظهور علامة الإغلاق X */
 .close-btn {
     position: absolute;
-    left: 15px;
-    top: 15px;
-    font-size: 1.5rem;
+    left: 12px;
+    top: 12px;
+    font-size: 1.2rem;
+    font-weight: bold;
     cursor: pointer;
-    color: #777;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.6);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.close-btn:hover {
+    background: #e74c3c;
+    color: #ffffff;
+    transform: scale(1.1);
+}
+
+
 }
 
 .chat-widget {

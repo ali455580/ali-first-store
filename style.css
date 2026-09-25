@@ -491,7 +491,7 @@ body.modal-open {
 }
 
 .close-btn {
-    position: absolute;
+    position: fixed;
     left: 12px;
     top: 12px;
     width: 32px;

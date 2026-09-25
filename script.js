@@ -16,11 +16,6 @@ if (!firebase.apps.length) {
 
 const db = firebase.firestore();
 
-db.settings({
-    experimentalAutoDetectLongPolling: true,
-    merge: true
-});
-
 const productsCol = db.collection('products');
 const categoriesDoc = db.collection('meta').doc('categories');
 const themeDoc = db.collection('meta').doc('theme');
@@ -28,7 +23,9 @@ const ordersCol = db.collection('orders');
 const chatsCol = db.collection('chats');
 const userNotifCol = db.collection('userNotifications');
 
-let categories = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
+const DEFAULT_CATEGORIES = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
+
+let categories = [...DEFAULT_CATEGORIES];
 let products = [];
 let orders = [];
 let chatMessages = [];
@@ -42,11 +39,12 @@ let cart = [];
 let currentCategory = 'الكل';
 let searchQuery = '';
 let tempImages = [];
-let editingProductId = null; // للتتبع عند تعديل المنتجات
+let editingProductId = null;
 let logoClickCount = 0;
 let logoClickTimer = null;
 let lastRenderedNotifKey = '';
 let knownChatMessageIds = new Set();
+let firstProductsLoad = true;
 
 function safeSetItem(key, value) {
     try {
@@ -61,6 +59,7 @@ function safeSetItem(key, value) {
 
 document.addEventListener("DOMContentLoaded", () => {
     setupSecretTriggers();
+    initCategories();
     setupFirestoreListeners();
     checkUserOrderStatus();
     renderSiteNotifications();
@@ -72,14 +71,23 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ==========================================
+   تهيئة الأقسام لمرة واحدة فقط (لا يعيد الكتابة كل مرة)
+   ========================================== */
+function initCategories() {
+    categoriesDoc.get().then(doc => {
+        if (!doc.exists || !Array.isArray(doc.data().list) || !doc.data().list.length) {
+            categoriesDoc.set({ list: DEFAULT_CATEGORIES }).catch(err => console.error(err));
+        }
+    }).catch(err => console.error('initCategories error:', err));
+}
+
+/* ==========================================
    الاستماع المباشر لتغييرات Firestore
    ========================================== */
 function setupFirestoreListeners() {
     categoriesDoc.onSnapshot(doc => {
         if (doc.exists && Array.isArray(doc.data().list) && doc.data().list.length) {
             categories = doc.data().list;
-        } else {
-            categoriesDoc.set({ list: categories }).catch(() => {});
         }
         renderCategories();
     }, err => console.error('categories listener error:', err));
@@ -94,9 +102,15 @@ function setupFirestoreListeners() {
 
     productsCol.onSnapshot(snap => {
         products = snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (a.order || 0) - (b.order || 0));
+        firstProductsLoad = false;
         renderProducts();
         if (localStorage.getItem('ali_is_admin') === 'true') renderAdminList();
-    }, err => console.error('products listener error:', err));
+    }, err => {
+        console.error('products listener error:', err);
+        firstProductsLoad = false;
+        const loadingEl = document.getElementById('products-loading');
+        if (loadingEl) loadingEl.classList.add('hidden');
+    });
 
     ordersCol.onSnapshot(snap => {
         orders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
@@ -192,16 +206,12 @@ function renderSiteNotifications() {
     if (key === lastRenderedNotifKey) return;
     lastRenderedNotifKey = key;
 
-    area.innerHTML = '';
-    visible.forEach(n => {
-        if (!n) return;
-        area.innerHTML += `
-            <div class="site-notice notice-${n.type || 'info'}">
-                <span>🔔 ${n.message || ''}</span>
-                <i class="fa-solid fa-xmark" onclick="dismissNotification('${n.id}')"></i>
-            </div>
-        `;
-    });
+    area.innerHTML = visible.map(n => n ? `
+        <div class="site-notice notice-${n.type || 'info'}">
+            <span>🔔 ${n.message || ''}</span>
+            <i class="fa-solid fa-xmark" onclick="dismissNotification('${n.id}')"></i>
+        </div>
+    ` : '').join('');
 }
 
 function checkUserOrderStatus() {
@@ -212,11 +222,7 @@ function checkUserOrderStatus() {
     const myOrder = orders.find(o => o && o.id == lastOrderId);
     if (myOrder && myOrder.status) {
         banner.classList.remove('hidden');
-        banner.innerHTML = `
-            <div class="order-banner">
-                📦 حالة طلبك الأخير: <strong>${myOrder.status}</strong>
-            </div>
-        `;
+        banner.innerHTML = `<div class="order-banner">📦 حالة طلبك الأخير: <strong>${myOrder.status}</strong></div>`;
     }
 }
 
@@ -245,10 +251,9 @@ function renderMyOrders() {
         return;
     }
 
-    list.innerHTML = '';
-    myOrders.slice().reverse().forEach(o => {
+    list.innerHTML = myOrders.slice().reverse().map(o => {
         let itemsHtml = Array.isArray(o.items) ? o.items.map(i => i ? i.name : '').join(' ، ') : '';
-        list.innerHTML += `
+        return `
             <div style="background:#f8f9fa; border:1px solid #ddd; padding:12px; margin-bottom:10px; border-radius:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-weight:bold; color:var(--primary-color);">${o.date || ''}</span>
@@ -258,7 +263,7 @@ function renderMyOrders() {
                 <p style="margin:4px 0; font-size:0.9rem;"><b>المجموع الكلي:</b> ${(o.total || 0).toLocaleString('ar-IQ')} د.ع</p>
             </div>
         `;
-    });
+    }).join('');
 }
 
 function renderUserNotifications() {
@@ -276,16 +281,13 @@ function renderUserNotifications() {
         return;
     }
 
-    list.innerHTML = '';
-    myNotifications.slice().reverse().forEach(n => {
-        list.innerHTML += `
-            <div style="background: #f8f9fa; border-right: 4px solid #2196f3; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
-                <p style="margin:0; font-weight:bold;">${n.title || ''}</p>
-                <p style="margin:3px 0; font-size:0.9rem;">${n.message || ''}</p>
-                <small style="color:#888;">${n.time || ''}</small>
-            </div>
-        `;
-    });
+    list.innerHTML = myNotifications.slice().reverse().map(n => `
+        <div style="background: #f8f9fa; border-right: 4px solid #2196f3; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
+            <p style="margin:0; font-weight:bold;">${n.title || ''}</p>
+            <p style="margin:3px 0; font-size:0.9rem;">${n.message || ''}</p>
+            <small style="color:#888;">${n.time || ''}</small>
+        </div>
+    `).join('');
 }
 
 function addUserNotification(orderId, title, message) {
@@ -304,27 +306,24 @@ function renderCategories() {
     const adminCatList = document.getElementById('admin-categories-list');
     const pCategorySelect = document.getElementById('p-category');
 
-    if (filterContainer) filterContainer.innerHTML = '';
-    if (adminCatList) adminCatList.innerHTML = '';
-    if (pCategorySelect) pCategorySelect.innerHTML = '';
-
-    categories.forEach(cat => {
-        if (filterContainer) {
+    if (filterContainer) {
+        filterContainer.innerHTML = categories.map(cat => {
             const activeClass = cat === currentCategory ? 'active' : '';
-            filterContainer.innerHTML += `<button class="cat-btn ${activeClass}" onclick="filterProducts('${cat}')">${cat}</button>`;
-        }
+            return `<button class="cat-btn ${activeClass}" onclick="filterProducts('${cat}')">${cat}</button>`;
+        }).join('');
+    }
 
-        if (cat !== 'الكل') {
-            if (pCategorySelect) pCategorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-            if (adminCatList) {
-                adminCatList.innerHTML += `
-                    <span class="tag" style="background:#eee; padding:4px 10px; border-radius:15px; display:inline-block; margin:3px;">
-                        ${cat} <i class="fa-solid fa-xmark" style="color:red; cursor:pointer;" onclick="deleteCategory('${cat}')"></i>
-                    </span>
-                `;
-            }
-        }
-    });
+    if (pCategorySelect) {
+        pCategorySelect.innerHTML = categories.filter(c => c !== 'الكل').map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    }
+
+    if (adminCatList) {
+        adminCatList.innerHTML = categories.filter(c => c !== 'الكل').map(cat => `
+            <span class="tag" style="background:#eee; padding:4px 10px; border-radius:15px; display:inline-block; margin:3px;">
+                ${cat} <i class="fa-solid fa-xmark" style="color:red; cursor:pointer;" onclick="deleteCategory('${cat}')"></i>
+            </span>
+        `).join('');
+    }
 }
 
 function addCategory() {
@@ -361,16 +360,15 @@ function handleSearch(value) {
 }
 
 /* ==========================================
-   معالجة الصور
+   معالجة الصور (تُضاف بدون حذف الصور الموجودة، ويمكن حذف أي صورة بزر X)
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
-    tempImages = [];
 
     files.forEach(file => {
         const reader = new FileReader();
         reader.onload = function (e) {
-            resizeImage(e.target.result, 500, 0.5, function (resizedBase64) {
+            resizeImage(e.target.result, 450, 0.5, function (resizedBase64) {
                 tempImages.push(resizedBase64);
                 renderImagePreviews();
             });
@@ -430,8 +428,10 @@ function getProductImages(p) {
 
 function renderProducts() {
     const grid = document.getElementById('products-grid');
+    const loadingEl = document.getElementById('products-loading');
     if (!grid) return;
-    grid.innerHTML = '';
+
+    if (loadingEl && !firstProductsLoad) loadingEl.classList.add('hidden');
 
     let filtered = currentCategory === 'الكل' ? products.slice() : products.filter(p => p && p.category === currentCategory);
 
@@ -440,19 +440,19 @@ function renderProducts() {
     }
 
     if (filtered.length === 0) {
-        grid.innerHTML = `<p style="grid-column: 1/-1; text-align:center;">${searchQuery ? 'لا توجد نتائج مطابقة لبحثك.' : 'لا توجد منتجات متاحة حالياً.'}</p>`;
+        grid.innerHTML = `<p style="grid-column: 1/-1; text-align:center;">${searchQuery ? 'لا توجد نتائج مطابقة لبحثك.' : (firstProductsLoad ? '' : 'لا توجد منتجات متاحة حالياً.')}</p>`;
         return;
     }
 
-    filtered.forEach(p => {
-        if (!p) return;
+    grid.innerHTML = filtered.map(p => {
+        if (!p) return '';
         const isAvailable = p.available !== false;
         const mainImg = getProductImages(p)[0];
 
-        grid.innerHTML += `
+        return `
             <div class="product-card">
                 <div class="product-img-wrap">
-                    <img class="main-img" src="${mainImg}" alt="${p.name || ''}" onclick="openProductDetails('${p.id}')" style="cursor:pointer;">
+                    <img class="main-img" src="${mainImg}" alt="${p.name || ''}" loading="lazy" onclick="openProductDetails('${p.id}')" style="cursor:pointer;">
                     <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
                 </div>
                 <div class="product-info">
@@ -470,7 +470,7 @@ function renderProducts() {
                 </div>
             </div>
         `;
-    });
+    }).join('');
 }
 
 function openProductDetails(id) {
@@ -484,15 +484,15 @@ function openProductDetails(id) {
     const isAvailable = p.available !== false;
 
     body.innerHTML = `
-        <img id="detail-main-img" src="${images[0]}" style="width:100%; height:260px; object-fit:cover; border-radius:8px;">
+        <img id="detail-main-img" src="${images[0]}" style="width:100%; height:240px; object-fit:cover; border-radius:8px;">
         <div style="display:flex; gap:8px; margin:10px 0; overflow-x:auto;">
-            ${images.map((img, i) => `<img src="${img}" onclick="document.getElementById('detail-main-img').src='${img}'" style="width:60px; height:60px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${i === 0 ? 'var(--accent-gold)' : 'transparent'};">`).join('')}
+            ${images.map((img, i) => `<img src="${img}" loading="lazy" onclick="document.getElementById('detail-main-img').src='${img}'" style="width:55px; height:55px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${i === 0 ? 'var(--accent-gold)' : 'transparent'};">`).join('')}
         </div>
         <span class="product-category-tag">${p.category || ''}</span>
         <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}" style="position:static; display:inline-block; margin-right:6px;">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
-        <h2 style="margin:8px 0; color:var(--primary-color);">${p.name || ''}</h2>
-        <p style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
-        <div class="price" style="font-size:1.4rem;">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
+        <h2 style="margin:8px 0; color:var(--primary-color); font-size:1.2rem;">${p.name || ''}</h2>
+        <p style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap; font-size:0.9rem;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
+        <div class="price" style="font-size:1.3rem;">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
         <button class="btn-gold" style="width:100%; margin-top:10px;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
             <i class="fa-solid fa-cart-plus"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر حالياً'}
         </button>
@@ -515,10 +515,17 @@ function addToCart(id) {
     showNotification(`تمت إضافة (${p.name}) للسلة`, 'success');
 }
 
+function isAnyModalOpen() {
+    return Array.from(document.querySelectorAll('.modal')).some(m => m.style.display === 'block');
+}
+
 function toggleModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
-    modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+    const opening = modal.style.display !== 'block';
+    modal.style.display = opening ? 'block' : 'none';
+
+    document.body.classList.toggle('modal-open', isAnyModalOpen());
 
     if (modalId === 'cart-modal') renderCartModal();
     if (modalId === 'my-orders-modal') renderMyOrders();
@@ -534,24 +541,24 @@ function toggleModal(modalId) {
 function renderCartModal() {
     const container = document.getElementById('cart-items');
     if (!container) return;
-    container.innerHTML = '';
     let subtotal = 0;
 
     if (cart.length === 0) {
         container.innerHTML = '<p style="text-align:center; color:#777;">السلة فارغة.</p>';
+    } else {
+        container.innerHTML = cart.map((item, index) => {
+            if (!item) return '';
+            subtotal += item.price || 0;
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span>${item.name || ''}</span>
+                    <b>${(item.price || 0).toLocaleString('ar-IQ')} د.ع</b>
+                    <button class="btn-danger" style="padding:2px 6px;" onclick="removeFromCart(${index})">X</button>
+                </div>
+            `;
+        }).join('');
+        subtotal = cart.reduce((sum, item) => sum + (item.price || 0), 0);
     }
-
-    cart.forEach((item, index) => {
-        if (!item) return;
-        subtotal += item.price || 0;
-        container.innerHTML += `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <span>${item.name || ''}</span>
-                <b>${(item.price || 0).toLocaleString('ar-IQ')} د.ع</b>
-                <button class="btn-danger" style="padding:2px 6px;" onclick="removeFromCart(${index})">X</button>
-            </div>
-        `;
-    });
 
     const delivery = cart.length > 0 ? DELIVERY_FEE : 0;
     const grandTotal = subtotal + delivery;
@@ -670,13 +677,13 @@ function scrollToOrdersSection() {
 }
 
 /* ==========================================
-   إدارة الطلبات والوارد والطلبات المكتملة
+   إدارة الطلبات
    ========================================== */
 function renderOrders() {
     const incomingList = document.getElementById('admin-orders-list');
     const completedList = document.getElementById('admin-completed-orders-list');
     const notifCount = document.getElementById('admin-notif-count');
-    
+
     if (!incomingList) return;
 
     const pendingOrders = orders.filter(o => o && !o.completed && o.status && typeof o.status === 'string' && o.status.includes('المراجعة'));
@@ -685,18 +692,14 @@ function renderOrders() {
     const activeOrders = orders.filter(o => o && !o.completed);
     const finishedOrders = orders.filter(o => o && o.completed);
 
-    // عرض الطلبات الواردة
-    incomingList.innerHTML = activeOrders.length === 0 ? '<p style="padding:10px; color:#666;">لا توجد طلبات واردة حالياً.</p>' : '';
-    activeOrders.forEach(o => {
-        incomingList.innerHTML += createOrderBoxHTML(o, false);
-    });
+    incomingList.innerHTML = activeOrders.length === 0
+        ? '<p style="padding:10px; color:#666;">لا توجد طلبات واردة حالياً.</p>'
+        : activeOrders.map(o => createOrderBoxHTML(o, false)).join('');
 
-    // عرض الطلبات المكتملة
     if (completedList) {
-        completedList.innerHTML = finishedOrders.length === 0 ? '<p style="padding:10px; color:#666;">لا توجد طلبات مكتملة بعد.</p>' : '';
-        finishedOrders.forEach(o => {
-            completedList.innerHTML += createOrderBoxHTML(o, true);
-        });
+        completedList.innerHTML = finishedOrders.length === 0
+            ? '<p style="padding:10px; color:#666;">لا توجد طلبات مكتملة بعد.</p>'
+            : finishedOrders.map(o => createOrderBoxHTML(o, true)).join('');
     }
 }
 
@@ -718,7 +721,7 @@ function createOrderBoxHTML(o, isCompleted) {
                 <button class="btn-success" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تمت الموافقة ✅')">موافقة</button>
                 <button class="btn-danger" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'تم رفض الطلب ❌')">رفض</button>
                 <button class="btn-gold" style="padding:4px 10px; font-size:0.85rem;" onclick="quickUpdateStatus('${o.id}', 'جاري الشحن 🚚')">شحن</button>
-                
+
                 ${!isCompleted ? `
                     <button class="btn-action" style="padding:4px 10px; font-size:0.85rem; background:#27ae60; color:#fff;" onclick="toggleOrderCompleted('${o.id}', true)">
                         <i class="fa-solid fa-check"></i> نقل للمكتملة
@@ -766,7 +769,6 @@ function handleAddProduct(e) {
     const description = descEl ? descEl.value.trim() : '';
 
     if (editingProductId) {
-        // وضع التعديل
         const updateData = { name, price, category, description };
         if (tempImages.length) updateData.images = [...tempImages];
 
@@ -775,7 +777,6 @@ function handleAddProduct(e) {
             resetProductForm();
         }).catch(err => console.error(err));
     } else {
-        // وضع الإضافة
         const newProd = {
             name,
             price,
@@ -801,7 +802,7 @@ function startEditProduct(id) {
     document.getElementById('p-name').value = p.name || '';
     document.getElementById('p-price').value = p.price || '';
     document.getElementById('p-category').value = p.category || categories[1] || '';
-    
+
     const descEl = document.getElementById('p-description');
     if (descEl) descEl.value = p.description || '';
 
@@ -827,11 +828,11 @@ function resetProductForm() {
 function renderAdminList() {
     const list = document.getElementById('admin-products-list');
     if (!list) return;
-    list.innerHTML = '';
-    products.forEach((p) => {
-        if (!p) return;
+
+    list.innerHTML = products.map(p => {
+        if (!p) return '';
         const isAvailable = p.available !== false;
-        list.innerHTML += `
+        return `
             <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; background:#fff; padding:10px; margin-bottom:5px; border-radius:6px; align-items:center;">
                 <span><b>${p.name || ''}</b> (${p.category || ''}) - ${(p.price || 0).toLocaleString('ar-IQ')} د.ع
                     <span style="font-size:0.75rem; color:${isAvailable ? 'var(--success-color)' : 'var(--danger-color)'}; font-weight:bold;">
@@ -849,7 +850,7 @@ function renderAdminList() {
                 </div>
             </div>
         `;
-    });
+    }).join('');
 }
 
 function toggleAvailability(id) {
@@ -950,7 +951,6 @@ function renderUserChatModal() {
         return;
     }
 
-    chatBox.innerHTML = '';
     const myMessages = chatMessages.filter(m => m && (
         (m.sender === 'user' && m.name === custName) ||
         (m.sender === 'admin' && (m.targetName === custName || !m.targetName))
@@ -958,13 +958,13 @@ function renderUserChatModal() {
 
     if (myMessages.length === 0) {
         chatBox.innerHTML = `<div class="msg bot-msg">أهلاً ${custName}! كيف يمكننا مساعدتك اليوم؟</div>`;
+    } else {
+        chatBox.innerHTML = myMessages.map(m => {
+            if (!m) return '';
+            const msgClass = m.sender === 'user' ? 'user-msg' : 'bot-msg';
+            return `<div class="msg ${msgClass}">${m.text || ''}</div>`;
+        }).join('');
     }
-
-    myMessages.forEach(m => {
-        if (!m) return;
-        const msgClass = m.sender === 'user' ? 'user-msg' : 'bot-msg';
-        chatBox.innerHTML += `<div class="msg ${msgClass}">${m.text || ''}</div>`;
-    });
 
     chatBox.scrollTop = chatBox.scrollHeight;
     updateChatUnreadBadge();
@@ -1033,7 +1033,6 @@ function renderAdminChat() {
     }
 
     const selectedCustomer = select.value;
-    box.innerHTML = '';
 
     if (!selectedCustomer) {
         box.innerHTML = '<p style="text-align:center; color:#777;">اختر زبوناً لعرض محادثته.</p>';
@@ -1046,15 +1045,14 @@ function renderAdminChat() {
         (m.sender === 'admin' && (m.targetName === selectedCustomer || !m.targetName))
     ));
 
-    if (conversation.length === 0) {
-        box.innerHTML = '<p style="text-align:center; color:#777;">لا توجد رسائل بعد.</p>';
-    }
+    box.innerHTML = conversation.length === 0
+        ? '<p style="text-align:center; color:#777;">لا توجد رسائل بعد.</p>'
+        : conversation.map(m => {
+            if (!m) return '';
+            const label = m.sender === 'user' ? selectedCustomer : 'المشرف';
+            return `<p><b>${label}:</b> ${m.text || ''}</p>`;
+        }).join('');
 
-    conversation.forEach(m => {
-        if (!m) return;
-        const label = m.sender === 'user' ? selectedCustomer : 'المشرف';
-        box.innerHTML += `<p><b>${label}:</b> ${m.text || ''}</p>`;
-    });
     box.scrollTop = box.scrollHeight;
 
     const unreadFromThisCustomer = chatMessages.filter(m => m && m.sender === 'user' && m.name === selectedCustomer && m.read === false);

@@ -1,6 +1,3 @@
-/* ==========================================
-   المتغيرات الأساسية والتصميم العام
-   ========================================== */
 :root {
     --primary-color: #1a252f;
     --secondary-color: #2c3e50;
@@ -23,11 +20,20 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+}
+
 body {
     background-color: var(--bg-light);
     color: var(--text-dark);
     direction: rtl;
     line-height: 1.6;
+}
+
+body.modal-open {
+    overflow: hidden;
 }
 
 .container {
@@ -36,13 +42,20 @@ body {
     margin: 0 auto;
 }
 
+.loading-text {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
 /* ==========================================
    الهيدر وشريط البحث
    ========================================== */
 .main-header {
     background: var(--primary-color);
     color: #fff;
-    padding: 15px 0;
+    padding: 12px 0;
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -56,7 +69,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     flex-wrap: wrap;
 }
 
@@ -68,20 +81,21 @@ body {
 }
 
 .logo-icon {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     color: var(--accent-gold);
 }
 
 .logo-area h1 {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
     font-weight: bold;
     color: #fff;
 }
 
 .search-box {
     position: relative;
-    flex: 1;
-    max-width: 400px;
+    flex: 1 1 100%;
+    order: 3;
+    max-width: none;
 }
 
 .search-box input {
@@ -105,15 +119,17 @@ body {
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+    order: 2;
 }
 
 .icon-btn {
     background: rgba(255, 255, 255, 0.1);
     border: none;
     color: #fff;
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     cursor: pointer;
     position: relative;
@@ -121,6 +137,7 @@ body {
     align-items: center;
     justify-content: center;
     transition: 0.3s;
+    font-size: 1rem;
 }
 
 .icon-btn:hover {
@@ -133,40 +150,44 @@ body {
     right: -3px;
     background: var(--danger-color);
     color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 10px;
     font-weight: bold;
+    min-width: 16px;
+    text-align: center;
 }
 
 /* ==========================================
-   شريط الأقسام (Categories)
+   شريط الأقسام
    ========================================== */
 .categories-bar {
     background: #fff;
     border-bottom: 1px solid #e2e8f0;
     padding: 12px 0;
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 }
 
 #categories-filter {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     overflow-x: auto;
     padding-bottom: 5px;
     white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
 }
 
 .cat-btn {
     background: #edf2f7;
     border: none;
-    padding: 8px 18px;
+    padding: 8px 16px;
     border-radius: 20px;
     color: var(--text-dark);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: 0.3s;
+    flex-shrink: 0;
 }
 
 .cat-btn.active, .cat-btn:hover {
@@ -175,7 +196,7 @@ body {
 }
 
 /* ==========================================
-   شبكة المنتجات (Grid Layout)
+   شبكة المنتجات
    ========================================== */
 .main-content {
     padding-bottom: 40px;
@@ -183,8 +204,8 @@ body {
 
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
 }
 
 .product-card {
@@ -200,14 +221,14 @@ body {
 }
 
 .product-card:hover {
-    transform: translateY(-50px);
+    transform: translateY(-5px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .product-img-wrap {
     position: relative;
     width: 100%;
-    height: 200px;
+    height: 180px;
     background: #f8fafc;
     overflow: hidden;
 }
@@ -225,11 +246,11 @@ body {
 
 .stock-badge {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 4px 10px;
+    top: 8px;
+    right: 8px;
+    padding: 3px 9px;
     border-radius: 12px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: bold;
     color: #fff;
 }
@@ -238,26 +259,26 @@ body {
 .stock-badge.out-stock { background: var(--danger-color); }
 
 .product-info {
-    padding: 15px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
 }
 
 .product-category-tag {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
     margin-bottom: 4px;
     display: block;
 }
 
 .product-info h3 {
-    font-size: 1rem;
+    font-size: 0.92rem;
     font-weight: 700;
     color: var(--text-dark);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     line-height: 1.4;
-    height: 2.8em;
+    height: 2.6em;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -265,15 +286,15 @@ body {
 }
 
 .product-info .price {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: bold;
     color: var(--primary-color);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     margin-top: auto;
 }
 
 /* ==========================================
-   الأزرار التصميم الجديد
+   الأزرار
    ========================================== */
 .btn-gold {
     background: var(--accent-gold);
@@ -288,7 +309,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .btn-gold:hover {
@@ -303,6 +324,7 @@ body {
     border-radius: 8px;
     cursor: pointer;
     transition: 0.3s;
+    font-size: 0.85rem;
 }
 
 .btn-danger {
@@ -312,6 +334,7 @@ body {
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
+    font-size: 0.85rem;
 }
 
 .btn-success {
@@ -321,20 +344,23 @@ body {
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
+    font-size: 0.85rem;
 }
 
 /* ==========================================
-   الإشعارات ولوحة التحكم والتنسيق المتقدم
+   الإشعارات
    ========================================== */
 .notification-container {
     position: fixed;
     top: 70px;
-    left: 20px;
+    left: 12px;
+    right: 12px;
     z-index: 10000;
     display: flex;
     flex-direction: column;
     gap: 8px;
     max-width: 320px;
+    margin: 0 auto 0 0;
 }
 
 .site-notice {
@@ -346,13 +372,27 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
     font-size: 0.85rem;
 }
 
+.site-notice i.fa-xmark {
+    cursor: pointer;
+    color: #999;
+    flex-shrink: 0;
+}
+
+.site-notice.notice-success { border-right-color: var(--success-color); }
+.site-notice.notice-danger { border-right-color: var(--danger-color); }
+.site-notice.notice-info { border-right-color: #3498db; }
+
+/* ==========================================
+   لوحة الأدمن
+   ========================================== */
 .admin-section {
     background: #fff;
     border-radius: var(--border-radius);
-    padding: 20px;
+    padding: 16px;
     margin-top: 30px;
     box-shadow: var(--box-shadow);
 }
@@ -366,7 +406,7 @@ body {
 .admin-block h3 {
     margin-bottom: 12px;
     color: var(--primary-color);
-    font-size: 1.1rem;
+    font-size: 1.05rem;
 }
 
 .form-group {
@@ -380,40 +420,117 @@ body {
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
+    min-width: 0;
 }
 
+/* ==========================================
+   معاينة صور المنتج (مع إمكانية الحذف)
+   ========================================== */
+.img-preview-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.img-preview-item {
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+
+.img-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+.remove-preview-img {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 24px;
+    height: 24px;
+    background: var(--danger-color);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    line-height: 1;
+    z-index: 5;
+}
+
+/* ==========================================
+   النوافذ المنبثقة (Modal)
+   ========================================== */
 .modal {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
+    inset: 0;
+    background: rgba(0,0,0,0.6);
     z-index: 2000;
+    overflow-y: auto;
+    padding: 20px 0;
 }
 
 .modal-content {
     background: #fff;
-    width: 90%;
+    width: 92%;
     max-width: 500px;
-    margin: 5% auto;
+    margin: 0 auto;
     padding: 20px;
     border-radius: var(--border-radius);
     position: relative;
-    max-height: 85vh;
-    overflow-y: auto;
 }
 
 .close-btn {
     position: absolute;
-    left: 15px;
-    top: 15px;
-    font-size: 1.5rem;
+    left: 12px;
+    top: 12px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+    background: var(--danger-color);
+    border-radius: 50%;
     cursor: pointer;
-    color: #777;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    line-height: 1;
+    z-index: 5;
 }
 
+.close-btn:hover {
+    background: #c0392b;
+}
+
+.cart-summary-row p, .cart-summary-row h3 {
+    margin: 6px 0;
+}
+
+.order-banner {
+    background: #fff3cd;
+    color: #856404;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin: 15px 0;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+/* ==========================================
+   الدردشة العائمة
+   ========================================== */
 .chat-widget {
     position: fixed;
     bottom: 20px;
@@ -431,13 +548,27 @@ body {
     font-size: 1.3rem;
     cursor: pointer;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    position: relative;
+}
+
+.chat-trigger-btn .badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    background: var(--danger-color);
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: bold;
 }
 
 .chat-box {
     position: fixed;
     bottom: 80px;
     left: 20px;
-    width: 300px;
+    width: 90vw;
+    max-width: 300px;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.2);
@@ -458,6 +589,17 @@ body {
     overflow-y: auto;
 }
 
+.msg {
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 80%;
+    font-size: 0.9rem;
+}
+
+.bot-msg { background: #e9ecef; color: #333; float: right; clear: both; }
+.user-msg { background: var(--accent-gold); color: white; float: left; clear: both; }
+
 .chat-footer {
     display: flex;
     padding: 8px;
@@ -474,28 +616,51 @@ body {
 .hidden { display: none !important; }
 
 /* ==========================================
-   التكيف مع الشاشات الصغيرة (Mobile Responsive)
+   التكيف مع الشاشات الصغيرة
    ========================================== */
 @media (max-width: 600px) {
+    .header-container {
+        gap: 8px;
+    }
+    .logo-area h1 {
+        font-size: 1rem;
+    }
+    .icon-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 0.9rem;
+    }
     .products-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
+        gap: 10px;
     }
     .product-img-wrap {
-        height: 140px;
+        height: 130px;
     }
     .product-info {
-        padding: 10px;
+        padding: 8px;
     }
     .product-info h3 {
-        font-size: 0.85rem;
-        height: 2.6em;
+        font-size: 0.8rem;
+        height: 2.5em;
     }
     .product-info .price {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }
     .btn-gold {
-        padding: 8px 10px;
-        font-size: 0.8rem;
+        padding: 8px 8px;
+        font-size: 0.75rem;
+    }
+    .form-group {
+        flex-direction: column;
+    }
+    .modal-content {
+        width: 94%;
+        padding: 16px;
+    }
+    .notification-container {
+        left: 8px;
+        right: 8px;
+        max-width: none;
     }
 }

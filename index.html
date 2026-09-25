@@ -2,32 +2,28 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>متجر علي الأول</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome الأيقونات -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 </head>
 <body>
 
-    <!-- الهيدر والشعار -->
     <header class="main-header">
         <div class="header-container">
             <div class="logo-area" id="admin-secret-trigger" title="انقر 3 مرات للدخول كأدمن">
                 <i class="fa-solid fa-store logo-icon"></i>
                 <h1>متجر علي الأول</h1>
             </div>
-            
+
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="ابحث عن جهاز..." oninput="handleSearch(this.value)">
                 <i class="fa-solid fa-magnifying-glass"></i>
             </div>
 
             <div class="header-actions">
-                <!-- أزرار الإشعارات والسلة والدردشة -->
                 <button class="icon-btn" onclick="toggleModal('user-notif-modal')" title="الإشعارات">
                     <i class="fa-solid fa-bell"></i>
                     <span class="badge" id="user-notif-count">0</span>
@@ -42,7 +38,6 @@
                     <span class="badge" id="cart-count">0</span>
                 </button>
 
-                <!-- أزرار خاصة بالأدمن عند تسجيل الدخول -->
                 <button id="admin-notif-btn" class="icon-btn admin-only hidden" onclick="scrollToOrdersSection()" title="طلبات جديدة">
                     <i class="fa-solid fa-box-open" style="color: #ff9800;"></i>
                     <span class="badge" id="admin-notif-count">0</span>
@@ -60,27 +55,19 @@
         </div>
     </header>
 
-    <!-- شريط الإشعارات والتحذيرات اللحظية -->
     <div id="notification-area" class="notification-container"></div>
 
-    <!-- بنر حالة الطلب للزبون -->
     <div id="order-status-banner" class="container hidden"></div>
 
-    <!-- تصنيفات المنتجات -->
     <nav class="categories-bar">
-        <div class="container" id="categories-filter">
-            <!-- يتم تحميل الأقسام ديناميكياً -->
-        </div>
+        <div class="container" id="categories-filter"></div>
     </nav>
 
-    <!-- شبكة المنتجات -->
     <main class="container main-content">
-        <div id="products-grid" class="products-grid">
-            <!-- يتم تحميل المنتجات هنا -->
-        </div>
+        <p id="products-loading" class="loading-text">⏳ جاري تحميل المنتجات...</p>
+        <div id="products-grid" class="products-grid"></div>
     </main>
 
-    <!-- لوحة تحكم المسؤول (الأدمن) -->
     <section id="admin-panel" class="admin-section hidden container">
         <div class="admin-card">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
@@ -88,7 +75,6 @@
                 <button class="btn-danger" onclick="logoutAdmin()">تسجيل الخروج</button>
             </div>
 
-            <!-- تخصيص الألوان -->
             <div class="admin-block">
                 <h3>🎨 مظهر المتجر</h3>
                 <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -97,17 +83,15 @@
                 </div>
             </div>
 
-            <!-- إدارة الأقسام -->
             <div class="admin-block">
                 <h3>📁 إدارة الأقسام</h3>
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <input type="text" id="new-cat-name" placeholder="اسم القسم الجديد">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap:wrap;">
+                    <input type="text" id="new-cat-name" placeholder="اسم القسم الجديد" style="flex:1; min-width:150px;">
                     <button class="btn-gold" onclick="addCategory()">إضافة قسم</button>
                 </div>
                 <div id="admin-categories-list"></div>
             </div>
 
-            <!-- إضافة وتعديل المنتجات -->
             <div class="admin-block">
                 <h3>📦 إضافة / تعديل منتج</h3>
                 <form id="add-product-form" onsubmit="handleAddProduct(event)">
@@ -120,33 +104,28 @@
                         <input type="file" id="p-images" multiple accept="image/*" onchange="previewImage(event)">
                     </div>
                     <div class="form-group">
-                        <!-- حقل الوصف textarea لتسهيل اللصق والكتابة -->
-                        <textarea id="p-description" rows="4" placeholder="وصف المنتج (يمكنك لصق النص هنا بسهولة...)" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; resize: vertical;"></textarea>
+                        <textarea id="p-description" rows="4" placeholder="وصف المنتج..." style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; resize: vertical;"></textarea>
                     </div>
                     <div id="img-preview-box" class="img-preview-container hidden"></div>
                     <button type="submit" id="save-product-btn" class="btn-gold" style="width: 100%; margin-top: 10px;">إضافة المنتج</button>
                 </form>
             </div>
 
-            <!-- قائمة المنتجات الحالية -->
             <div class="admin-block">
                 <h3>📋 المنتجات الحالية (الترتيب والتحكم)</h3>
                 <div id="admin-products-list"></div>
             </div>
 
-            <!-- إدارة الطلبات الواردة والمكتملة -->
             <div class="admin-block" id="admin-orders-section">
                 <h3>📥 الطلبات الواردة</h3>
                 <div id="admin-orders-list"></div>
 
-                <!-- قسم الطلبات المكتملة الجديد -->
                 <div style="margin-top: 25px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0;">
                     <h3 style="color: #27ae60; margin-bottom: 15px;">✅ الطلبات المكتملة والأرشيف</h3>
                     <div id="admin-completed-orders-list"></div>
                 </div>
             </div>
 
-            <!-- ردود الدردشة المباشرة -->
             <div class="admin-block">
                 <h3>💬 محادثات الزبائن المباشرة</h3>
                 <select id="chat-customer-select" onchange="renderAdminChat()" style="width: 100%; padding: 8px; margin-bottom: 10px;"></select>
@@ -159,14 +138,13 @@
         </div>
     </section>
 
-    <!-- Modal سلة الشراء والدفع -->
     <div id="cart-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="toggleModal('cart-modal')">&times;</span>
             <h2>🛒 سلة الشراء</h2>
             <div id="cart-items" style="margin-top: 15px;"></div>
-            
-            <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 15px;">
+
+            <div class="cart-summary-row" style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 15px;">
                 <p>مجموع المنتجات: <span id="cart-subtotal">0</span> د.ع</p>
                 <p>أجور التوصيل: <span id="cart-delivery">5,000</span> د.ع</p>
                 <h3>المجموع الكلي: <span id="cart-total" style="color: var(--primary-color);">0</span> د.ع</h3>
@@ -183,7 +161,6 @@
         </div>
     </div>
 
-    <!-- Modal تفاصيل المنتج -->
     <div id="product-detail-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="toggleModal('product-detail-modal')">&times;</span>
@@ -191,7 +168,6 @@
         </div>
     </div>
 
-    <!-- Modal إشعارات الزبون -->
     <div id="user-notif-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="toggleModal('user-notif-modal')">&times;</span>
@@ -200,7 +176,6 @@
         </div>
     </div>
 
-    <!-- Modal سجل طلبات الزبون -->
     <div id="my-orders-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="toggleModal('my-orders-modal')">&times;</span>
@@ -209,7 +184,6 @@
         </div>
     </div>
 
-    <!-- Modal دخول الأدمن -->
     <div id="login-modal" class="modal">
         <div class="modal-content" style="max-width: 350px;">
             <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
@@ -219,7 +193,6 @@
         </div>
     </div>
 
-    <!-- زر وأيقونة الدردشة المباشرة للزبون -->
     <div class="chat-widget">
         <button class="chat-trigger-btn" onclick="toggleChat()">
             <i class="fa-solid fa-headset"></i>
@@ -246,5 +219,4 @@
 
     <script src="script.js"></script>
 </body>
-    </html>
-                    
+</html>

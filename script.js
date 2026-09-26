@@ -34,6 +34,7 @@ let userNotifications = [];
 let siteNotifications = JSON.parse(localStorage.getItem('ali_site_notifications')) || [];
 
 const DELIVERY_FEE = 5000;
+const PRODUCTS_BATCH_SIZE = 20;
 
 let cart = [];
 let currentCategory = 'الكل';
@@ -46,6 +47,7 @@ let lastRenderedNotifKey = '';
 let knownChatMessageIds = new Set();
 let firstProductsLoad = true;
 let productsListCollapsed = false;
+let visibleProductsCount = PRODUCTS_BATCH_SIZE;
 
 function safeSetItem(key, value) {
     try {
@@ -362,17 +364,19 @@ function deleteCategory(cat) {
 
 function filterProducts(cat) {
     currentCategory = cat;
+    visibleProductsCount = PRODUCTS_BATCH_SIZE;
     renderCategories();
     renderProducts();
 }
 
 function handleSearch(value) {
     searchQuery = (value || '').trim().toLowerCase();
+    visibleProductsCount = PRODUCTS_BATCH_SIZE;
     renderProducts();
 }
 
 /* ==========================================
-   معالجة الصور
+   معالجة الصور (مصغّرة أكثر لتحسين السرعة)
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
@@ -380,7 +384,7 @@ function previewImage(event) {
     files.forEach(file => {
         const reader = new FileReader();
         reader.onload = function (e) {
-            resizeImage(e.target.result, 450, 0.5, function (resizedBase64) {
+            resizeImage(e.target.result, 350, 0.35, function (resizedBase64) {
                 tempImages.push(resizedBase64);
                 renderImagePreviews();
             });
@@ -438,6 +442,9 @@ function getProductImages(p) {
     return ['https://via.placeholder.com/200'];
 }
 
+/* ==========================================
+   عرض المنتجات مع تحميل تدريجي (20 منتج أولاً)
+   ========================================== */
 function renderProducts() {
     const grid = document.getElementById('products-grid');
     const loadingEl = document.getElementById('products-loading');
@@ -456,7 +463,10 @@ function renderProducts() {
         return;
     }
 
-    grid.innerHTML = filtered.map(p => {
+    const visible = filtered.slice(0, visibleProductsCount);
+    const hasMore = filtered.length > visibleProductsCount;
+
+    grid.innerHTML = visible.map(p => {
         if (!p) return '';
         const isAvailable = p.available !== false;
         const mainImg = getProductImages(p)[0];
@@ -483,6 +493,21 @@ function renderProducts() {
             </div>
         `;
     }).join('');
+
+    if (hasMore) {
+        grid.innerHTML += `
+            <div style="grid-column: 1/-1; text-align:center; padding:15px;">
+                <button class="btn-action" style="padding:10px 25px;" onclick="loadMoreProducts()">
+                    عرض المزيد (${filtered.length - visibleProductsCount} متبقي)
+                </button>
+            </div>
+        `;
+    }
+}
+
+function loadMoreProducts() {
+    visibleProductsCount += PRODUCTS_BATCH_SIZE;
+    renderProducts();
 }
 
 function openProductDetails(id) {

@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
 </head>
 <body>
 
@@ -187,14 +189,15 @@
         </div>
     </div>
 
-    <div id="login-modal" class="modal">
-        <div class="modal-content" style="max-width: 350px;">
-            <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
-            <h2>🔐 دخول لوحة التحكم</h2>
-            <input type="password" id="admin-password" placeholder="أدخل كلمة المرور" style="width: 100%; padding: 10px; margin: 15px 0;">
-            <button class="btn-gold" style="width: 100%;" onclick="loginAdmin()">دخول</button>
-        </div>
+<div id="login-modal" class="modal">
+    <div class="modal-content" style="max-width: 350px;">
+        <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
+        <h2>🔐 دخول لوحة التحكم</h2>
+        <input type="email" id="admin-email" placeholder="البريد الإلكتروني" style="width: 100%; padding: 10px; margin: 15px 0 8px;">
+        <input type="password" id="admin-password" placeholder="كلمة المرور" style="width: 100%; padding: 10px; margin-bottom: 15px;">
+        <button class="btn-gold" style="width: 100%;" onclick="loginAdmin()">دخول</button>
     </div>
+</div>
 
     <div class="chat-widget">
         <button class="chat-trigger-btn" onclick="toggleChat()">

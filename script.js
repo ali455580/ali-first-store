@@ -45,6 +45,7 @@ let logoClickTimer = null;
 let lastRenderedNotifKey = '';
 let knownChatMessageIds = new Set();
 let firstProductsLoad = true;
+let productsListCollapsed = false;
 
 function safeSetItem(key, value) {
     try {
@@ -71,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ==========================================
-   تهيئة الأقسام لمرة واحدة فقط (لا يعيد الكتابة كل مرة)
+   تهيئة الأقسام لمرة واحدة فقط
    ========================================== */
 function initCategories() {
     categoriesDoc.get().then(doc => {
@@ -360,7 +361,7 @@ function handleSearch(value) {
 }
 
 /* ==========================================
-   معالجة الصور (تُضاف بدون حذف الصور الموجودة، ويمكن حذف أي صورة بزر X)
+   معالجة الصور
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
@@ -548,7 +549,6 @@ function renderCartModal() {
     } else {
         container.innerHTML = cart.map((item, index) => {
             if (!item) return '';
-            subtotal += item.price || 0;
             return `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span>${item.name || ''}</span>
@@ -825,8 +825,21 @@ function resetProductForm() {
     if (submitBtn) submitBtn.innerText = 'إضافة المنتج';
 }
 
+/* ==========================================
+   طي/إظهار قائمة المنتجات + عداد العدد
+   ========================================== */
+function toggleProductsListCollapse() {
+    productsListCollapsed = !productsListCollapsed;
+    const list = document.getElementById('admin-products-list');
+    const arrow = document.getElementById('products-list-arrow');
+    if (list) list.classList.toggle('hidden', productsListCollapsed);
+    if (arrow) arrow.style.transform = productsListCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
 function renderAdminList() {
     const list = document.getElementById('admin-products-list');
+    const countBadge = document.getElementById('products-count-badge');
+    if (countBadge) countBadge.innerText = `(${products.length})`;
     if (!list) return;
 
     list.innerHTML = products.map(p => {

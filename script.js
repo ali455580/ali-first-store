@@ -15,6 +15,7 @@ if (!firebase.apps.length) {
 }
 
 const db = firebase.firestore();
+const auth = firebase.auth();
 
 const productsCol = db.collection('products');
 const categoriesDoc = db.collection('meta').doc('categories');
@@ -31,7 +32,6 @@ let orders = [];
 let chatMessages = [];
 let userNotifications = [];
 let siteNotifications = JSON.parse(localStorage.getItem('ali_site_notifications')) || [];
-let adminPasswords = ["plmnkoplmnm"];
 
 const DELIVERY_FEE = 5000;
 
@@ -66,9 +66,20 @@ document.addEventListener("DOMContentLoaded", () => {
     renderSiteNotifications();
     setInterval(renderSiteNotifications, 1000);
 
-    if (localStorage.getItem('ali_is_admin') === 'true') {
-        showAdminControls();
-    }
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            showAdminControls();
+        } else {
+            const ctrlBtn = document.getElementById('admin-control-btn');
+            const notifBtn = document.getElementById('admin-notif-btn');
+            const chatBtn = document.getElementById('admin-chat-notif-btn');
+            const panel = document.getElementById('admin-panel');
+            if (ctrlBtn) ctrlBtn.classList.add('hidden');
+            if (notifBtn) notifBtn.classList.add('hidden');
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (panel) panel.classList.add('hidden');
+        }
+    });
 });
 
 /* ==========================================
@@ -105,7 +116,7 @@ function setupFirestoreListeners() {
         products = snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (a.order || 0) - (b.order || 0));
         firstProductsLoad = false;
         renderProducts();
-        if (localStorage.getItem('ali_is_admin') === 'true') renderAdminList();
+        if (auth.currentUser) renderAdminList();
     }, err => {
         console.error('products listener error:', err);
         firstProductsLoad = false;
@@ -117,13 +128,13 @@ function setupFirestoreListeners() {
         orders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         checkUserOrderStatus();
         renderMyOrders();
-        if (localStorage.getItem('ali_is_admin') === 'true') renderOrders();
+        if (auth.currentUser) renderOrders();
     }, err => console.error('orders listener error:', err));
 
     chatsCol.orderBy('createdAt', 'asc').onSnapshot(snap => {
         const newMessages = snap.docs.map(d => ({ ...d.data(), id: d.id }));
 
-        if (localStorage.getItem('ali_is_admin') === 'true') {
+        if (auth.currentUser) {
             newMessages.forEach(m => {
                 if (m.sender === 'user' && !knownChatMessageIds.has(m.id) && knownChatMessageIds.size > 0) {
                     showNotification(`رسالة جديدة من الزبون: ${m.name || 'غير معروف'}`, 'info');
@@ -134,7 +145,7 @@ function setupFirestoreListeners() {
 
         chatMessages = newMessages;
         renderUserChatModal();
-        if (localStorage.getItem('ali_is_admin') === 'true') renderAdminChat();
+        if (auth.currentUser) renderAdminChat();
     }, err => console.error('chats listener error:', err));
 
     userNotifCol.onSnapshot(snap => {
@@ -625,16 +636,23 @@ function handleCheckout(e) {
 function openAdminModal() { toggleModal('login-modal'); }
 
 function loginAdmin() {
+    const emailInput = document.getElementById('admin-email');
     const passInput = document.getElementById('admin-password');
+    const email = emailInput ? emailInput.value.trim() : '';
     const pass = passInput ? passInput.value : '';
-    if (adminPasswords.includes(pass)) {
-        safeSetItem('ali_is_admin', 'true');
-        toggleModal('login-modal');
-        showAdminControls();
-        showNotification("مرحباً بك! تم تسجيل الدخول كمسؤول.", 'success');
-    } else {
-        showNotification("كلمة المرور غير صحيحة!", 'danger');
+
+    if (!email || !pass) {
+        showNotification("الرجاء إدخال البريد وكلمة المرور", 'danger');
+        return;
     }
+
+    auth.signInWithEmailAndPassword(email, pass).then(() => {
+        toggleModal('login-modal');
+        showNotification("مرحباً بك! تم تسجيل الدخول كمسؤول.", 'success');
+    }).catch(err => {
+        console.error(err);
+        showNotification("البريد أو كلمة المرور غير صحيحة!", 'danger');
+    });
 }
 
 function showAdminControls() {
@@ -653,17 +671,18 @@ function showAdminControls() {
 }
 
 function logoutAdmin() {
-    localStorage.removeItem('ali_is_admin');
-    const ctrlBtn = document.getElementById('admin-control-btn');
-    const notifBtn = document.getElementById('admin-notif-btn');
-    const chatBtn = document.getElementById('admin-chat-notif-btn');
-    const panel = document.getElementById('admin-panel');
+    auth.signOut().then(() => {
+        const ctrlBtn = document.getElementById('admin-control-btn');
+        const notifBtn = document.getElementById('admin-notif-btn');
+        const chatBtn = document.getElementById('admin-chat-notif-btn');
+        const panel = document.getElementById('admin-panel');
 
-    if (ctrlBtn) ctrlBtn.classList.add('hidden');
-    if (notifBtn) notifBtn.classList.add('hidden');
-    if (chatBtn) chatBtn.classList.add('hidden');
-    if (panel) panel.classList.add('hidden');
-    showNotification("تم الخروج وإخفاء لوحة التحكم.", 'info');
+        if (ctrlBtn) ctrlBtn.classList.add('hidden');
+        if (notifBtn) notifBtn.classList.add('hidden');
+        if (chatBtn) chatBtn.classList.add('hidden');
+        if (panel) panel.classList.add('hidden');
+        showNotification("تم الخروج وإخفاء لوحة التحكم.", 'info');
+    }).catch(err => console.error(err));
 }
 
 function scrollToAdminPanel() {
@@ -1022,7 +1041,7 @@ function updateAdminChatBadge() {
     const unread = chatMessages.filter(m => m && m.sender === 'user' && m.read === false);
     countEl.innerText = unread.length;
 
-    if (localStorage.getItem('ali_is_admin') === 'true') {
+    if (auth.currentUser) {
         btn.classList.remove('hidden');
     }
 }

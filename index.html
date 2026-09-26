@@ -111,11 +111,14 @@
                 </form>
             </div>
 
-            <div class="admin-block">
-                <h3>📋 المنتجات الحالية (الترتيب والتحكم)</h3>
-                <div id="admin-products-list"></div>
-            </div>
 
+<div class="admin-block">
+    <h3 onclick="toggleProductsListCollapse()" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
+        <span>📋 المنتجات الحالية (الترتيب والتحكم) <span id="products-count-badge" style="font-size:0.85rem; color:var(--text-muted); font-weight:normal;">(0)</span></span>
+        <i id="products-list-arrow" class="fa-solid fa-chevron-down" style="transition: transform 0.3s;"></i>
+    </h3>
+    <div id="admin-products-list"></div>
+</div>
             <div class="admin-block" id="admin-orders-section">
                 <h3>📥 الطلبات الواردة</h3>
                 <div id="admin-orders-list"></div>

@@ -47,7 +47,9 @@ let lastRenderedNotifKey = '';
 let knownChatMessageIds = new Set();
 let firstProductsLoad = true;
 let productsListCollapsed = false;
-let visibleProductsCount = PRODUCTS_BATCH_SIZE;
+let lastVisibleDoc = null;
+let allProductsLoaded = false;
+let isLoadingMore = false;
 
 function safeSetItem(key, value) {
     try {
@@ -96,7 +98,54 @@ function initCategories() {
 }
 
 /* ==========================================
-   الاستماع المباشر لتغييرات Firestore
+   تحميل المنتجات بدفعات حقيقية (Pagination)
+   ========================================== */
+function loadInitialProducts() {
+    productsCol.orderBy('order').limit(PRODUCTS_BATCH_SIZE).get().then(snap => {
+        products = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        lastVisibleDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+        allProductsLoaded = snap.docs.length < PRODUCTS_BATCH_SIZE;
+        firstProductsLoad = false;
+        renderProducts();
+        if (auth.currentUser) renderAdminList();
+    }).catch(err => {
+        console.error('products load error:', err);
+        firstProductsLoad = false;
+        const loadingEl = document.getElementById('products-loading');
+        if (loadingEl) loadingEl.classList.add('hidden');
+    });
+}
+
+function loadMoreProducts() {
+    if (isLoadingMore || allProductsLoaded || !lastVisibleDoc) return;
+    isLoadingMore = true;
+
+    productsCol.orderBy('order').startAfter(lastVisibleDoc).limit(PRODUCTS_BATCH_SIZE).get().then(snap => {
+        const newProducts = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        products = products.concat(newProducts);
+        lastVisibleDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : lastVisibleDoc;
+        allProductsLoaded = snap.docs.length < PRODUCTS_BATCH_SIZE;
+        isLoadingMore = false;
+        renderProducts();
+    }).catch(err => {
+        console.error('load more error:', err);
+        isLoadingMore = false;
+    });
+}
+
+function loadAllProductsForAdmin() {
+    productsCol.orderBy('order').get().then(snap => {
+        const allProducts = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        products = allProducts;
+        lastVisibleDoc = null;
+        allProductsLoaded = true;
+        renderProducts();
+        renderAdminList();
+    }).catch(err => console.error('admin products load error:', err));
+}
+
+/* ==========================================
+   الاستماع المباشر لتغييرات Firestore (بدون المنتجات - تُحمَّل بدفعات منفصلة)
    ========================================== */
 function setupFirestoreListeners() {
     categoriesDoc.onSnapshot(doc => {
@@ -114,17 +163,7 @@ function setupFirestoreListeners() {
         }
     }, err => console.error('theme listener error:', err));
 
-    productsCol.onSnapshot(snap => {
-        products = snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => (a.order || 0) - (b.order || 0));
-        firstProductsLoad = false;
-        renderProducts();
-        if (auth.currentUser) renderAdminList();
-    }, err => {
-        console.error('products listener error:', err);
-        firstProductsLoad = false;
-        const loadingEl = document.getElementById('products-loading');
-        if (loadingEl) loadingEl.classList.add('hidden');
-    });
+    loadInitialProducts();
 
     ordersCol.onSnapshot(snap => {
         orders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
@@ -364,14 +403,12 @@ function deleteCategory(cat) {
 
 function filterProducts(cat) {
     currentCategory = cat;
-    visibleProductsCount = PRODUCTS_BATCH_SIZE;
     renderCategories();
     renderProducts();
 }
 
 function handleSearch(value) {
     searchQuery = (value || '').trim().toLowerCase();
-    visibleProductsCount = PRODUCTS_BATCH_SIZE;
     renderProducts();
 }
 
@@ -443,7 +480,7 @@ function getProductImages(p) {
 }
 
 /* ==========================================
-   عرض المنتجات مع تحميل تدريجي (20 منتج أولاً)
+   عرض المنتجات (المحمّلة فعلياً فقط)
    ========================================== */
 function renderProducts() {
     const grid = document.getElementById('products-grid');
@@ -463,10 +500,7 @@ function renderProducts() {
         return;
     }
 
-    const visible = filtered.slice(0, visibleProductsCount);
-    const hasMore = filtered.length > visibleProductsCount;
-
-    grid.innerHTML = visible.map(p => {
+    grid.innerHTML = filtered.map(p => {
         if (!p) return '';
         const isAvailable = p.available !== false;
         const mainImg = getProductImages(p)[0];
@@ -494,20 +528,15 @@ function renderProducts() {
         `;
     }).join('');
 
-    if (hasMore) {
+    if (!allProductsLoaded && !searchQuery) {
         grid.innerHTML += `
             <div style="grid-column: 1/-1; text-align:center; padding:15px;">
                 <button class="btn-action" style="padding:10px 25px;" onclick="loadMoreProducts()">
-                    عرض المزيد (${filtered.length - visibleProductsCount} متبقي)
+                    عرض المزيد من المنتجات
                 </button>
             </div>
         `;
     }
-}
-
-function loadMoreProducts() {
-    visibleProductsCount += PRODUCTS_BATCH_SIZE;
-    renderProducts();
 }
 
 function openProductDetails(id) {
@@ -689,7 +718,7 @@ function showAdminControls() {
     if (notifBtn) notifBtn.classList.remove('hidden');
     if (panel) panel.classList.remove('hidden');
 
-    renderAdminList();
+    loadAllProductsForAdmin();
     renderOrders();
     renderAdminChat();
     updateAdminChatBadge();
@@ -707,6 +736,10 @@ function logoutAdmin() {
         if (chatBtn) chatBtn.classList.add('hidden');
         if (panel) panel.classList.add('hidden');
         showNotification("تم الخروج وإخفاء لوحة التحكم.", 'info');
+
+        lastVisibleDoc = null;
+        allProductsLoaded = false;
+        loadInitialProducts();
     }).catch(err => console.error(err));
 }
 
@@ -819,6 +852,7 @@ function handleAddProduct(e) {
         productsCol.doc(editingProductId).update(updateData).then(() => {
             showNotification("تم تعديل المنتج بنجاح! ✏️", 'success');
             resetProductForm();
+            loadAllProductsForAdmin();
         }).catch(err => console.error(err));
     } else {
         const newProd = {
@@ -834,6 +868,7 @@ function handleAddProduct(e) {
         productsCol.add(newProd).then(() => {
             showNotification("تمت إضافة المنتج بنجاح!", 'success');
             resetProductForm();
+            loadAllProductsForAdmin();
         }).catch(err => console.error(err));
     }
 }
@@ -917,6 +952,9 @@ function toggleAvailability(id) {
     const newVal = p.available === false;
     productsCol.doc(id).update({ available: newVal }).then(() => {
         showNotification(`المنتج (${p.name}) أصبح ${newVal ? 'متوفراً ✅' : 'غير متوفر ❌'}`, newVal ? 'success' : 'danger');
+        p.available = newVal;
+        renderProducts();
+        renderAdminList();
     }).catch(err => console.error(err));
 }
 
@@ -933,13 +971,18 @@ function moveProduct(id, dir) {
     const batch = db.batch();
     batch.update(productsCol.doc(a.id), { order: bOrder });
     batch.update(productsCol.doc(b.id), { order: aOrder });
-    batch.commit().catch(err => console.error(err));
+    batch.commit().then(() => {
+        loadAllProductsForAdmin();
+    }).catch(err => console.error(err));
 }
 
 function deleteProduct(id) {
     if (confirm("هل تريد حذف هذا المنتج؟")) {
         productsCol.doc(id).delete().then(() => {
             showNotification("تم حذف المنتج", 'danger');
+            products = products.filter(p => p && p.id !== id);
+            renderProducts();
+            renderAdminList();
         }).catch(err => console.error(err));
     }
 }

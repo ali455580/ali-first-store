@@ -715,7 +715,7 @@ function openProductDetails(id) {
     const rating = getProductRating(p.id);
 
     body.innerHTML = `
-        <img id="detail-main-img" src="${images[0]}" style="width:100%; height:240px; object-fit:cover; border-radius:8px;">
+        <img id="detail-main-img" src="${images[0]}" style="width:100%; max-height:320px; object-fit:contain; border-radius:8px; background:#f8f9fa;">
         <div style="display:flex; gap:8px; margin:10px 0; overflow-x:auto;">
             ${images.map((img, i) => `<img src="${img}" loading="lazy" onclick="document.getElementById('detail-main-img').src='${img}'" style="width:55px; height:55px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${i === 0 ? 'var(--accent-gold)' : 'transparent'};">`).join('')}
         </div>

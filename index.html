@@ -6,10 +6,19 @@
     <title>متجر علي الأول</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Analytics -G-X0XJ3K7D5P-->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-X0XJ3K7D5P"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-X0XJ3K7D5P');
+    </script>
+
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 </head>
 <body>
 
@@ -86,6 +95,16 @@
             </div>
 
             <div class="admin-block">
+                <h3>💾 النسخة الاحتياطية</h3>
+                <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;">
+                    احفظ نسخة من كل بياناتك (المنتجات، الأقسام، الطلبات) كملف على جهازك، للرجوع إليه لاحقاً عند الحاجة.
+                </p>
+                <button class="btn-gold" style="width:100%;" onclick="exportBackup()">
+                    <i class="fa-solid fa-download"></i> تصدير نسخة احتياطية الآن
+                </button>
+            </div>
+
+            <div class="admin-block">
                 <h3>📁 إدارة الأقسام</h3>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap:wrap;">
                     <input type="text" id="new-cat-name" placeholder="اسم القسم الجديد" style="flex:1; min-width:150px;">
@@ -113,14 +132,14 @@
                 </form>
             </div>
 
+            <div class="admin-block">
+                <h3 onclick="toggleProductsListCollapse()" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
+                    <span>📋 المنتجات الحالية (الترتيب والتحكم) <span id="products-count-badge" style="font-size:0.85rem; color:var(--text-muted); font-weight:normal;">(0)</span></span>
+                    <i id="products-list-arrow" class="fa-solid fa-chevron-down" style="transition: transform 0.3s;"></i>
+                </h3>
+                <div id="admin-products-list"></div>
+            </div>
 
-<div class="admin-block">
-    <h3 onclick="toggleProductsListCollapse()" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
-        <span>📋 المنتجات الحالية (الترتيب والتحكم) <span id="products-count-badge" style="font-size:0.85rem; color:var(--text-muted); font-weight:normal;">(0)</span></span>
-        <i id="products-list-arrow" class="fa-solid fa-chevron-down" style="transition: transform 0.3s;"></i>
-    </h3>
-    <div id="admin-products-list"></div>
-</div>
             <div class="admin-block" id="admin-orders-section">
                 <h3>📥 الطلبات الواردة</h3>
                 <div id="admin-orders-list"></div>
@@ -189,15 +208,15 @@
         </div>
     </div>
 
-<div id="login-modal" class="modal">
-    <div class="modal-content" style="max-width: 350px;">
-        <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
-        <h2>🔐 دخول لوحة التحكم</h2>
-        <input type="email" id="admin-email" placeholder="البريد الإلكتروني" style="width: 100%; padding: 10px; margin: 15px 0 8px;">
-        <input type="password" id="admin-password" placeholder="كلمة المرور" style="width: 100%; padding: 10px; margin-bottom: 15px;">
-        <button class="btn-gold" style="width: 100%;" onclick="loginAdmin()">دخول</button>
+    <div id="login-modal" class="modal">
+        <div class="modal-content" style="max-width: 350px;">
+            <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
+            <h2>🔐 دخول لوحة التحكم</h2>
+            <input type="email" id="admin-email" placeholder="البريد الإلكتروني" style="width: 100%; padding: 10px; margin: 15px 0 8px;">
+            <input type="password" id="admin-password" placeholder="كلمة المرور" style="width: 100%; padding: 10px; margin-bottom: 15px;">
+            <button class="btn-gold" style="width: 100%;" onclick="loginAdmin()">دخول</button>
+        </div>
     </div>
-</div>
 
     <div class="chat-widget">
         <button class="chat-trigger-btn" onclick="toggleChat()">

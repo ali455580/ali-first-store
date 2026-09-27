@@ -23,6 +23,7 @@ const themeDoc = db.collection('meta').doc('theme');
 const ordersCol = db.collection('orders');
 const chatsCol = db.collection('chats');
 const userNotifCol = db.collection('userNotifications');
+const reviewsCol = db.collection('reviews');
 
 const DEFAULT_CATEGORIES = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
 
@@ -31,6 +32,7 @@ let products = [];
 let orders = [];
 let chatMessages = [];
 let userNotifications = [];
+let productReviews = {};
 let siteNotifications = JSON.parse(localStorage.getItem('ali_site_notifications')) || [];
 
 const DELIVERY_FEE = 5000;
@@ -50,6 +52,7 @@ let productsListCollapsed = false;
 let lastVisibleDoc = null;
 let allProductsLoaded = false;
 let isLoadingMore = false;
+let currentStarValue = 0;
 
 function safeSetItem(key, value) {
     try {
@@ -68,6 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupFirestoreListeners();
     checkUserOrderStatus();
     renderSiteNotifications();
+    loadReviewsSummary();
     setInterval(renderSiteNotifications, 1000);
 
     auth.onAuthStateChanged(user => {
@@ -95,6 +99,153 @@ function initCategories() {
             categoriesDoc.set({ list: DEFAULT_CATEGORIES }).catch(err => console.error(err));
         }
     }).catch(err => console.error('initCategories error:', err));
+}
+
+/* ==========================================
+   التقييمات
+   ========================================== */
+function loadReviewsSummary() {
+    reviewsCol.get().then(snap => {
+        const summary = {};
+        snap.docs.forEach(d => {
+            const r = d.data();
+            if (!r.productId) return;
+            if (!summary[r.productId]) summary[r.productId] = { total: 0, count: 0 };
+            summary[r.productId].total += r.rating || 0;
+            summary[r.productId].count += 1;
+        });
+        productReviews = summary;
+        renderProducts();
+    }).catch(err => console.error('reviews load error:', err));
+}
+
+function getProductRating(productId) {
+    const r = productReviews[productId];
+    if (!r || r.count === 0) return null;
+    return { avg: (r.total / r.count).toFixed(1), count: r.count };
+}
+
+function findProductIdByName(name) {
+    const p = products.find(prod => prod && prod.name === name);
+    return p ? p.id : null;
+}
+
+function openReviewForm(orderId, itemIndex, productName) {
+    const existingModal = document.getElementById('review-modal');
+    if (existingModal) existingModal.remove();
+    currentStarValue = 0;
+
+    const safeName = productName.replace(/'/g, "\\'");
+    const modalHtml = `
+        <div id="review-modal" class="modal" style="display:block;">
+            <div class="modal-content" style="max-width:350px;">
+                <span class="close-btn" onclick="document.getElementById('review-modal').remove()">&times;</span>
+                <h3 style="margin-bottom:10px;">تقييم: ${productName}</h3>
+                <div id="star-rating" style="font-size:28px; margin-bottom:12px; text-align:center; cursor:pointer;">
+                    ${[1,2,3,4,5].map(n => `<span class="star" data-value="${n}" onclick="setStarRating(${n})" style="color:#ddd;">★</span>`).join('')}
+                </div>
+                <textarea id="review-comment" rows="3" placeholder="تعليقك (اختياري)..." style="width:100%; padding:8px; border:1px solid #ccc; border-radius:6px; margin-bottom:10px;"></textarea>
+                <button class="btn-gold" style="width:100%;" onclick="submitReview('${orderId}', ${itemIndex}, '${safeName}')">إرسال التقييم</button>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function setStarRating(value) {
+    currentStarValue = value;
+    document.querySelectorAll('#star-rating .star').forEach(star => {
+        const starValue = parseInt(star.getAttribute('data-value'));
+        star.style.color = starValue <= value ? '#f39c12' : '#ddd';
+    });
+}
+
+function submitReview(orderId, itemIndex, productName) {
+    if (currentStarValue === 0) {
+        showNotification("الرجاء اختيار عدد النجوم أولاً", 'danger');
+        return;
+    }
+
+    const order = orders.find(o => o && o.id === orderId);
+    const item = order && Array.isArray(order.items) ? order.items[itemIndex] : null;
+    const productId = (item && item.productId) ? item.productId : findProductIdByName(productName);
+
+    const commentEl = document.getElementById('review-comment');
+    const comment = commentEl ? commentEl.value.trim() : '';
+
+    reviewsCol.add({
+        productId: productId || '',
+        productName,
+        orderId,
+        rating: currentStarValue,
+        comment,
+        customerName: order ? order.name : '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        showNotification("شكراً لتقييمك! تم إرساله بنجاح", 'success');
+        const modal = document.getElementById('review-modal');
+        if (modal) modal.remove();
+        currentStarValue = 0;
+        loadReviewsSummary();
+    }).catch(err => {
+        console.error(err);
+        showNotification("تعذر إرسال التقييم، حاول مرة أخرى", 'danger');
+    });
+}
+
+/* ==========================================
+   مشاركة المنتج
+   ========================================== */
+function shareProduct(id) {
+    const p = products.find(prod => prod && prod.id === id);
+    if (!p) return;
+
+    const shareText = `${p.name} - ${(p.price || 0).toLocaleString('ar-IQ')} د.ع\nمتجر علي الأول`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+        navigator.share({
+            title: p.name,
+            text: shareText,
+            url: shareUrl
+        }).catch(err => console.error('share error:', err));
+    } else {
+        navigator.clipboard.writeText(`${shareText}\n${shareUrl}`).then(() => {
+            showNotification("تم نسخ رابط المنتج، شاركه مع من تريد!", 'success');
+        }).catch(() => {
+            showNotification("تعذر النسخ، جرب مرة أخرى", 'danger');
+        });
+    }
+}
+
+/* ==========================================
+   النسخة الاحتياطية
+   ========================================== */
+function exportBackup() {
+    const backupData = {
+        exportDate: new Date().toISOString(),
+        categories: categories,
+        products: products
+    };
+
+    ordersCol.get().then(snap => {
+        backupData.orders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ali-store-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showNotification("تم تصدير النسخة الاحتياطية بنجاح", 'success');
+    }).catch(err => {
+        console.error(err);
+        showNotification("تعذر تصدير النسخة الاحتياطية", 'danger');
+    });
 }
 
 /* ==========================================
@@ -145,7 +296,7 @@ function loadAllProductsForAdmin() {
 }
 
 /* ==========================================
-   الاستماع المباشر لتغييرات Firestore (بدون المنتجات - تُحمَّل بدفعات منفصلة)
+   الاستماع المباشر لتغييرات Firestore
    ========================================== */
 function setupFirestoreListeners() {
     categoriesDoc.onSnapshot(doc => {
@@ -280,7 +431,7 @@ function checkUserOrderStatus() {
 }
 
 /* ==========================================
-   سجل طلبات الزبون
+   سجل طلبات الزبون + التقييمات
    ========================================== */
 function getMyOrderIds() {
     return JSON.parse(localStorage.getItem('ali_my_order_ids')) || [];
@@ -305,14 +456,22 @@ function renderMyOrders() {
     }
 
     list.innerHTML = myOrders.slice().reverse().map(o => {
-        let itemsHtml = Array.isArray(o.items) ? o.items.map(i => i ? i.name : '').join(' ، ') : '';
+        const canReview = o.status && (o.status.includes('الشحن') || o.status.includes('الموافقة'));
+        let itemsHtml = Array.isArray(o.items) ? o.items.map((i, idx) => {
+            if (!i) return '';
+            const safeName = (i.name || '').replace(/'/g, "\\'");
+            const reviewBtn = canReview ? `<button class="btn-action" style="padding:3px 8px; font-size:0.75rem;" onclick="openReviewForm('${o.id}', ${idx}, '${safeName}')">⭐ تقييم</button>` : '';
+            return `<div style="display:flex; justify-content:space-between; align-items:center; margin:4px 0;"><span>${i.name || ''}</span>${reviewBtn}</div>`;
+        }).join('') : '';
+
         return `
             <div style="background:#f8f9fa; border:1px solid #ddd; padding:12px; margin-bottom:10px; border-radius:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-weight:bold; color:var(--primary-color);">${o.date || ''}</span>
                     <span style="font-size:0.8rem; background:#fff3cd; color:#856404; padding:3px 10px; border-radius:12px; font-weight:bold;">${o.status || 'قيد المراجعة'}</span>
                 </div>
-                <p style="margin:8px 0 4px; font-size:0.9rem;"><b>الأجهزة:</b> ${itemsHtml}</p>
+                <p style="margin:8px 0 4px; font-size:0.9rem; font-weight:bold;">الأجهزة:</p>
+                ${itemsHtml}
                 <p style="margin:4px 0; font-size:0.9rem;"><b>المجموع الكلي:</b> ${(o.total || 0).toLocaleString('ar-IQ')} د.ع</p>
             </div>
         `;
@@ -413,7 +572,7 @@ function handleSearch(value) {
 }
 
 /* ==========================================
-   معالجة الصور (مصغّرة أكثر لتحسين السرعة)
+   معالجة الصور
    ========================================== */
 function previewImage(event) {
     const files = Array.from(event.target.files || []);
@@ -480,7 +639,7 @@ function getProductImages(p) {
 }
 
 /* ==========================================
-   عرض المنتجات (المحمّلة فعلياً فقط)
+   عرض المنتجات (تقييم + مشاركة)
    ========================================== */
 function renderProducts() {
     const grid = document.getElementById('products-grid');
@@ -504,6 +663,7 @@ function renderProducts() {
         if (!p) return '';
         const isAvailable = p.available !== false;
         const mainImg = getProductImages(p)[0];
+        const rating = getProductRating(p.id);
 
         return `
             <div class="product-card">
@@ -514,6 +674,7 @@ function renderProducts() {
                 <div class="product-info">
                     <span class="product-category-tag">${p.category || ''}</span>
                     <h3 onclick="openProductDetails('${p.id}')" style="cursor:pointer;">${p.name || ''}</h3>
+                    ${rating ? `<div style="font-size:0.8rem; color:#f39c12; margin-bottom:4px;">⭐ ${rating.avg} (${rating.count})</div>` : ''}
                     <div class="price">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
                     <div style="display:flex; gap:6px;">
                         <button class="btn-gold" style="flex:1;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
@@ -521,6 +682,9 @@ function renderProducts() {
                         </button>
                         <button class="btn-action" style="padding:8px 10px;" onclick="openProductDetails('${p.id}')">
                             <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button class="btn-action" style="padding:8px 10px;" onclick="shareProduct('${p.id}')">
+                            <i class="fa-solid fa-share-nodes"></i>
                         </button>
                     </div>
                 </div>
@@ -548,15 +712,22 @@ function openProductDetails(id) {
 
     const images = getProductImages(p);
     const isAvailable = p.available !== false;
+    const rating = getProductRating(p.id);
 
     body.innerHTML = `
         <img id="detail-main-img" src="${images[0]}" style="width:100%; height:240px; object-fit:cover; border-radius:8px;">
         <div style="display:flex; gap:8px; margin:10px 0; overflow-x:auto;">
             ${images.map((img, i) => `<img src="${img}" loading="lazy" onclick="document.getElementById('detail-main-img').src='${img}'" style="width:55px; height:55px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid ${i === 0 ? 'var(--accent-gold)' : 'transparent'};">`).join('')}
         </div>
-        <span class="product-category-tag">${p.category || ''}</span>
-        <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}" style="position:static; display:inline-block; margin-right:6px;">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="product-category-tag">${p.category || ''}</span>
+            <button class="btn-action" style="padding:5px 10px; font-size:0.8rem;" onclick="shareProduct('${p.id}')">
+                <i class="fa-solid fa-share-nodes"></i> مشاركة
+            </button>
+        </div>
+        <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}" style="position:static; display:inline-block; margin-right:6px; margin-top:8px;">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
         <h2 style="margin:8px 0; color:var(--primary-color); font-size:1.2rem;">${p.name || ''}</h2>
+        ${rating ? `<div style="font-size:0.95rem; color:#f39c12; margin-bottom:6px;">⭐ ${rating.avg} من 5 (${rating.count} تقييم)</div>` : '<div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">لا توجد تقييمات بعد</div>'}
         <p style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap; font-size:0.9rem;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
         <div class="price" style="font-size:1.3rem;">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
         <button class="btn-gold" style="width:100%; margin-top:10px;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
@@ -657,7 +828,7 @@ function handleCheckout(e) {
         name: document.getElementById('cust-name').value,
         phone: document.getElementById('cust-phone').value,
         address: document.getElementById('cust-address').value,
-        items: cart.map(i => ({ name: i.name, price: i.price })),
+        items: cart.map(i => ({ name: i.name, price: i.price, productId: i.id })),
         subtotal,
         delivery,
         total: subtotal + delivery,

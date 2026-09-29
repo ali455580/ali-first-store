@@ -2,18 +2,21 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>متجر علي الأول</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Google Analytics -G-X0XJ3K7D5P-->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-X0XJ3K7D5P"></script>
+    <!-- Google Analytics - استبدل G-XXXXXXXXXX برقمك الحقيقي -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'G-X0XJ3K7D5P');
+        gtag('config', 'G-XXXXXXXXXX');
     </script>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -30,32 +33,32 @@
             </div>
 
             <div class="search-box">
-                <input type="text" id="search-input" placeholder="ابحث عن جهاز..." oninput="handleSearch(this.value)">
-                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="search-input" placeholder="ابحث عن جهاز..." aria-label="ابحث عن جهاز" oninput="handleSearch(this.value)">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
             </div>
 
             <div class="header-actions">
-                <button class="icon-btn" onclick="toggleModal('user-notif-modal')" title="الإشعارات">
-                    <i class="fa-solid fa-bell"></i>
+                <button class="icon-btn" onclick="toggleModal('user-notif-modal')" title="الإشعارات" aria-label="الإشعارات">
+                    <i class="fa-solid fa-bell" aria-hidden="true"></i>
                     <span class="badge" id="user-notif-count">0</span>
                 </button>
 
-                <button class="icon-btn" onclick="toggleModal('my-orders-modal')" title="طلباتي السابقة">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
+                <button class="icon-btn" onclick="toggleModal('my-orders-modal')" title="طلباتي السابقة" aria-label="طلباتي السابقة">
+                    <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
                 </button>
 
-                <button class="icon-btn" onclick="toggleModal('cart-modal')" title="سلة الشراء">
-                    <i class="fa-solid fa-cart-shopping"></i>
+                <button class="icon-btn" onclick="toggleModal('cart-modal')" title="سلة الشراء" aria-label="سلة الشراء">
+                    <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
                     <span class="badge" id="cart-count">0</span>
                 </button>
 
-                <button id="admin-notif-btn" class="icon-btn admin-only hidden" onclick="scrollToOrdersSection()" title="طلبات جديدة">
-                    <i class="fa-solid fa-box-open" style="color: #ff9800;"></i>
+                <button id="admin-notif-btn" class="icon-btn admin-only hidden" onclick="scrollToOrdersSection()" title="طلبات جديدة" aria-label="طلبات جديدة">
+                    <i class="fa-solid fa-box-open" style="color: #ff9800;" aria-hidden="true"></i>
                     <span class="badge" id="admin-notif-count">0</span>
                 </button>
 
-                <button id="admin-chat-notif-btn" class="icon-btn admin-only hidden" onclick="scrollToAdminPanel()" title="رسائل الزبائن">
-                    <i class="fa-solid fa-comments" style="color: #2196f3;"></i>
+                <button id="admin-chat-notif-btn" class="icon-btn admin-only hidden" onclick="scrollToAdminPanel()" title="رسائل الزبائن" aria-label="رسائل الزبائن">
+                    <i class="fa-solid fa-comments" style="color: #2196f3;" aria-hidden="true"></i>
                     <span class="badge" id="admin-chat-notif-count">0</span>
                 </button>
 
@@ -66,15 +69,22 @@
         </div>
     </header>
 
-    <div id="notification-area" class="notification-container"></div>
+    <div id="notification-area" class="notification-container" role="status" aria-live="polite"></div>
 
     <div id="order-status-banner" class="container hidden"></div>
 
-    <nav class="categories-bar">
+    <nav class="categories-bar" aria-label="أقسام المنتجات">
         <div class="container" id="categories-filter"></div>
     </nav>
 
     <main class="container main-content">
+        <div class="sort-bar" style="margin:10px 0; display:flex; justify-content:flex-end;">
+            <select id="sort-select" onchange="handleSortChange(this.value)" aria-label="ترتيب المنتجات" style="padding:8px 12px; border-radius:8px; border:1px solid #ccc; font-size:0.85rem;">
+                <option value="default">الترتيب الافتراضي</option>
+                <option value="newest">الأحدث</option>
+                <option value="bestselling">الأكثر مبيعاً</option>
+            </select>
+        </div>
         <p id="products-loading" class="loading-text">⏳ جاري تحميل المنتجات...</p>
         <div id="products-grid" class="products-grid"></div>
     </main>
@@ -92,6 +102,14 @@
                     <label>اللون الرئيسي: <input type="color" onchange="changeThemeColor(this.value, 'primary')"></label>
                     <label>اللون الثانوي: <input type="color" onchange="changeThemeColor(this.value, 'secondary')"></label>
                 </div>
+            </div>
+
+            <div class="admin-block">
+                <h3>🔔 الإشعارات الخارجية</h3>
+                <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">
+                    تنبيه فوري من نظام جهازك عند وصول طلب أو رسالة جديدة، طالما الموقع مفتوحاً (ولو بتبويب آخر). لا تعمل إذا أغلقت المتصفح تماماً.
+                </p>
+                <button id="push-toggle-btn" class="btn-gold" style="width:100%;" onclick="togglePushNotifications()">تفعيل الإشعارات الخارجية 🔔</button>
             </div>
 
             <div class="admin-block">
@@ -125,6 +143,9 @@
                         <input type="file" id="p-images" multiple accept="image/*" onchange="previewImage(event)">
                     </div>
                     <div class="form-group">
+                        <input type="text" id="p-supplier" placeholder="اسم الشركة الموردة (لك فقط، لا يظهر للزبون)">
+                    </div>
+                    <div class="form-group">
                         <textarea id="p-description" rows="4" placeholder="وصف المنتج..." style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; resize: vertical;"></textarea>
                     </div>
                     <div id="img-preview-box" class="img-preview-container hidden"></div>
@@ -135,7 +156,7 @@
             <div class="admin-block">
                 <h3 onclick="toggleProductsListCollapse()" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
                     <span>📋 المنتجات الحالية (الترتيب والتحكم) <span id="products-count-badge" style="font-size:0.85rem; color:var(--text-muted); font-weight:normal;">(0)</span></span>
-                    <i id="products-list-arrow" class="fa-solid fa-chevron-down" style="transition: transform 0.3s;"></i>
+                    <i id="products-list-arrow" class="fa-solid fa-chevron-down" style="transition: transform 0.3s;" aria-hidden="true"></i>
                 </h3>
                 <div id="admin-products-list"></div>
             </div>
@@ -162,9 +183,9 @@
         </div>
     </section>
 
-    <div id="cart-modal" class="modal">
+    <div id="cart-modal" class="modal" role="dialog" aria-modal="true" aria-label="سلة الشراء">
         <div class="modal-content">
-            <span class="close-btn" onclick="toggleModal('cart-modal')">&times;</span>
+            <button type="button" class="close-btn" onclick="toggleModal('cart-modal')" aria-label="إغلاق">&times;</button>
             <h2>🛒 سلة الشراء</h2>
             <div id="cart-items" style="margin-top: 15px;"></div>
 
@@ -185,32 +206,32 @@
         </div>
     </div>
 
-    <div id="product-detail-modal" class="modal">
+    <div id="product-detail-modal" class="modal" role="dialog" aria-modal="true" aria-label="تفاصيل المنتج">
         <div class="modal-content">
-            <span class="close-btn" onclick="toggleModal('product-detail-modal')">&times;</span>
+            <button type="button" class="close-btn" onclick="toggleModal('product-detail-modal')" aria-label="إغلاق">&times;</button>
             <div id="product-detail-body"></div>
         </div>
     </div>
 
-    <div id="user-notif-modal" class="modal">
+    <div id="user-notif-modal" class="modal" role="dialog" aria-modal="true" aria-label="الإشعارات">
         <div class="modal-content">
-            <span class="close-btn" onclick="toggleModal('user-notif-modal')">&times;</span>
+            <button type="button" class="close-btn" onclick="toggleModal('user-notif-modal')" aria-label="إغلاق">&times;</button>
             <h2>🔔 الإشعارات الخاصة بك</h2>
             <div id="user-notifications-list" style="margin-top: 15px;"></div>
         </div>
     </div>
 
-    <div id="my-orders-modal" class="modal">
+    <div id="my-orders-modal" class="modal" role="dialog" aria-modal="true" aria-label="سجل طلباتي">
         <div class="modal-content">
-            <span class="close-btn" onclick="toggleModal('my-orders-modal')">&times;</span>
+            <button type="button" class="close-btn" onclick="toggleModal('my-orders-modal')" aria-label="إغلاق">&times;</button>
             <h2>📜 سجل طلباتي</h2>
             <div id="my-orders-list" style="margin-top: 15px;"></div>
         </div>
     </div>
 
-    <div id="login-modal" class="modal">
+    <div id="login-modal" class="modal" role="dialog" aria-modal="true" aria-label="دخول لوحة التحكم">
         <div class="modal-content" style="max-width: 350px;">
-            <span class="close-btn" onclick="toggleModal('login-modal')">&times;</span>
+            <button type="button" class="close-btn" onclick="toggleModal('login-modal')" aria-label="إغلاق">&times;</button>
             <h2>🔐 دخول لوحة التحكم</h2>
             <input type="email" id="admin-email" placeholder="البريد الإلكتروني" style="width: 100%; padding: 10px; margin: 15px 0 8px;">
             <input type="password" id="admin-password" placeholder="كلمة المرور" style="width: 100%; padding: 10px; margin-bottom: 15px;">
@@ -219,15 +240,17 @@
     </div>
 
     <div class="chat-widget">
-        <button class="chat-trigger-btn" onclick="toggleChat()">
-            <i class="fa-solid fa-headset"></i>
+        <button class="chat-trigger-btn" onclick="toggleChat()" aria-label="الدردشة مع خدمة العملاء">
+            <i class="fa-solid fa-headset" aria-hidden="true"></i>
             <span id="chat-unread-badge" class="badge hidden">0</span>
         </button>
 
-        <div id="chat-modal" class="chat-box hidden">
+        <div id="chat-modal" class="chat-box hidden" role="dialog" aria-modal="true" aria-label="الدردشة المباشرة">
             <div class="chat-header">
                 <span>الدعم الفني المباشر</span>
-                <i class="fa-solid fa-xmark" onclick="toggleChat()" style="cursor: pointer;"></i>
+                <button type="button" onclick="toggleChat()" aria-label="إغلاق الدردشة" style="background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer; padding:2px;">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
             </div>
             <div id="chat-name-gate" class="chat-body">
                 <p style="font-size: 0.9rem; margin-bottom: 10px;">مرحباً بك! يرجى كتابة اسمك لبدء المحادثة:</p>
@@ -237,7 +260,7 @@
             <div id="chat-messages" class="chat-body hidden"></div>
             <div id="chat-input-wrap" class="chat-footer hidden">
                 <input type="text" id="chat-input" placeholder="اكتب رسالتك..." onkeypress="handleChatKeyPress(event)">
-                <button class="btn-gold" onclick="sendUserMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+                <button class="btn-gold" onclick="sendUserMessage()" aria-label="إرسال الرسالة"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
             </div>
         </div>
     </div>

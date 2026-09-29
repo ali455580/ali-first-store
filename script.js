@@ -33,6 +33,7 @@ let orders = [];
 let chatMessages = [];
 let userNotifications = [];
 let productReviews = {};
+let salesCounts = {};
 let siteNotifications = JSON.parse(localStorage.getItem('ali_site_notifications')) || [];
 
 const DELIVERY_FEE = 5000;
@@ -40,6 +41,7 @@ const PRODUCTS_BATCH_SIZE = 20;
 
 let cart = [];
 let currentCategory = 'الكل';
+let currentSort = 'default';
 let searchQuery = '';
 let tempImages = [];
 let editingProductId = null;
@@ -47,12 +49,15 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let lastRenderedNotifKey = '';
 let knownChatMessageIds = new Set();
+let knownOrderIds = new Set();
 let firstProductsLoad = true;
 let productsListCollapsed = false;
 let lastVisibleDoc = null;
 let allProductsLoaded = false;
 let isLoadingMore = false;
 let currentStarValue = 0;
+let lastFocusedElement = null;
+let pushNotificationsEnabled = localStorage.getItem('ali_push_enabled') === 'true';
 
 function safeSetItem(key, value) {
     try {
@@ -67,11 +72,13 @@ function safeSetItem(key, value) {
 
 document.addEventListener("DOMContentLoaded", () => {
     setupSecretTriggers();
+    setupKeyboardShortcuts();
     initCategories();
     setupFirestoreListeners();
     checkUserOrderStatus();
     renderSiteNotifications();
     loadReviewsSummary();
+    updatePushToggleUI();
     setInterval(renderSiteNotifications, 1000);
 
     auth.onAuthStateChanged(user => {
@@ -91,6 +98,32 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ==========================================
+   إمكانية الوصول: زر Esc لإغلاق النوافذ
+   ========================================== */
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' && e.key !== 'Esc') return;
+
+        const reviewModal = document.getElementById('review-modal');
+        if (reviewModal) {
+            reviewModal.remove();
+            return;
+        }
+
+        const openModal = Array.from(document.querySelectorAll('.modal')).find(m => m.style.display === 'block');
+        if (openModal) {
+            toggleModal(openModal.id);
+            return;
+        }
+
+        const chatModal = document.getElementById('chat-modal');
+        if (chatModal && !chatModal.classList.contains('hidden')) {
+            toggleChat();
+        }
+    });
+}
+
+/* ==========================================
    تهيئة الأقسام لمرة واحدة فقط
    ========================================== */
 function initCategories() {
@@ -99,6 +132,74 @@ function initCategories() {
             categoriesDoc.set({ list: DEFAULT_CATEGORIES }).catch(err => console.error(err));
         }
     }).catch(err => console.error('initCategories error:', err));
+}
+
+/* ==========================================
+   الإشعارات الخارجية (تعمل فقط أثناء فتح الموقع)
+   ========================================== */
+function updatePushToggleUI() {
+    const btn = document.getElementById('push-toggle-btn');
+    if (!btn) return;
+    btn.innerText = pushNotificationsEnabled ? 'إيقاف الإشعارات الخارجية 🔕' : 'تفعيل الإشعارات الخارجية 🔔';
+}
+
+function togglePushNotifications() {
+    if (!pushNotificationsEnabled) {
+        if (!('Notification' in window)) {
+            showNotification('متصفحك لا يدعم هذه الميزة', 'danger');
+            return;
+        }
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                pushNotificationsEnabled = true;
+                localStorage.setItem('ali_push_enabled', 'true');
+                updatePushToggleUI();
+                showNotification('تم تفعيل الإشعارات الخارجية', 'success');
+            } else {
+                showNotification('لم يتم السماح بالإشعارات من إعدادات المتصفح', 'danger');
+            }
+        });
+    } else {
+        pushNotificationsEnabled = false;
+        localStorage.setItem('ali_push_enabled', 'false');
+        updatePushToggleUI();
+        showNotification('تم إيقاف الإشعارات الخارجية', 'info');
+    }
+}
+
+function sendBrowserNotification(title, body) {
+    if (!pushNotificationsEnabled || !auth.currentUser) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+        new Notification(title, { body: body || '' });
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+/* ==========================================
+   الأكثر مبيعاً (محسوب من الطلبات، بلا حقل جديد)
+   ========================================== */
+function computeSalesCounts() {
+    const counts = {};
+    orders.forEach(o => {
+        if (!o) return;
+        const qualifies = o.completed || (o.status && (o.status.includes('الموافقة') || o.status.includes('الشحن')));
+        if (!qualifies || !Array.isArray(o.items)) return;
+        o.items.forEach(i => {
+            if (!i || !i.productId) return;
+            counts[i.productId] = (counts[i.productId] || 0) + 1;
+        });
+    });
+    salesCounts = counts;
+}
+
+function getSalesCount(productId) {
+    return salesCounts[productId] || 0;
+}
+
+function isBestSeller(productId) {
+    return getSalesCount(productId) >= 3;
 }
 
 /* ==========================================
@@ -137,9 +238,9 @@ function openReviewForm(orderId, itemIndex, productName) {
 
     const safeName = productName.replace(/'/g, "\\'");
     const modalHtml = `
-        <div id="review-modal" class="modal" style="display:block;">
+        <div id="review-modal" class="modal" style="display:block;" role="dialog" aria-modal="true" aria-label="تقييم المنتج">
             <div class="modal-content" style="max-width:350px;">
-                <span class="close-btn" onclick="document.getElementById('review-modal').remove()">&times;</span>
+                <button type="button" class="close-btn" onclick="document.getElementById('review-modal').remove()" aria-label="إغلاق">&times;</button>
                 <h3 style="margin-bottom:10px;">تقييم: ${productName}</h3>
                 <div id="star-rating" style="font-size:28px; margin-bottom:12px; text-align:center; cursor:pointer;">
                     ${[1,2,3,4,5].map(n => `<span class="star" data-value="${n}" onclick="setStarRating(${n})" style="color:#ddd;">★</span>`).join('')}
@@ -249,10 +350,18 @@ function exportBackup() {
 }
 
 /* ==========================================
-   تحميل المنتجات بدفعات حقيقية (Pagination)
+   تحميل المنتجات (بدفعات حقيقية، مقيّد بالقسم)
    ========================================== */
-function loadInitialProducts() {
-    productsCol.orderBy('order').limit(PRODUCTS_BATCH_SIZE).get().then(snap => {
+function loadCategoryProducts(cat) {
+    const loadingEl = document.getElementById('products-loading');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+
+    let query = productsCol.orderBy('order').limit(PRODUCTS_BATCH_SIZE);
+    if (cat !== 'الكل') {
+        query = productsCol.where('category', '==', cat).orderBy('order').limit(PRODUCTS_BATCH_SIZE);
+    }
+
+    query.get().then(snap => {
         products = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         lastVisibleDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
         allProductsLoaded = snap.docs.length < PRODUCTS_BATCH_SIZE;
@@ -262,7 +371,6 @@ function loadInitialProducts() {
     }).catch(err => {
         console.error('products load error:', err);
         firstProductsLoad = false;
-        const loadingEl = document.getElementById('products-loading');
         if (loadingEl) loadingEl.classList.add('hidden');
     });
 }
@@ -271,7 +379,12 @@ function loadMoreProducts() {
     if (isLoadingMore || allProductsLoaded || !lastVisibleDoc) return;
     isLoadingMore = true;
 
-    productsCol.orderBy('order').startAfter(lastVisibleDoc).limit(PRODUCTS_BATCH_SIZE).get().then(snap => {
+    let query = productsCol.orderBy('order').startAfter(lastVisibleDoc).limit(PRODUCTS_BATCH_SIZE);
+    if (currentCategory !== 'الكل') {
+        query = productsCol.where('category', '==', currentCategory).orderBy('order').startAfter(lastVisibleDoc).limit(PRODUCTS_BATCH_SIZE);
+    }
+
+    query.get().then(snap => {
         const newProducts = snap.docs.map(d => ({ ...d.data(), id: d.id }));
         products = products.concat(newProducts);
         lastVisibleDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : lastVisibleDoc;
@@ -296,6 +409,44 @@ function loadAllProductsForAdmin() {
 }
 
 /* ==========================================
+   الترتيب حسب اختيار الزبون (الأحدث / الأكثر مبيعاً)
+   ========================================== */
+function handleSortChange(value) {
+    currentSort = value;
+
+    if (value === 'default') {
+        loadCategoryProducts(currentCategory);
+        return;
+    }
+
+    const loadingEl = document.getElementById('products-loading');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+
+    let query = productsCol;
+    if (currentCategory !== 'الكل') {
+        query = query.where('category', '==', currentCategory);
+    }
+
+    query.get().then(snap => {
+        let all = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        if (value === 'newest') {
+            all.sort((a, b) => (b.order || 0) - (a.order || 0));
+        } else if (value === 'bestselling') {
+            all.sort((a, b) => getSalesCount(b.id) - getSalesCount(a.id));
+        }
+        products = all;
+        allProductsLoaded = true;
+        lastVisibleDoc = null;
+        firstProductsLoad = false;
+        if (loadingEl) loadingEl.classList.add('hidden');
+        renderProducts();
+    }).catch(err => {
+        console.error('sort load error:', err);
+        if (loadingEl) loadingEl.classList.add('hidden');
+    });
+}
+
+/* ==========================================
    الاستماع المباشر لتغييرات Firestore
    ========================================== */
 function setupFirestoreListeners() {
@@ -314,12 +465,25 @@ function setupFirestoreListeners() {
         }
     }, err => console.error('theme listener error:', err));
 
-    loadInitialProducts();
+    loadCategoryProducts(currentCategory);
 
     ordersCol.onSnapshot(snap => {
-        orders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+        const newOrders = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+        if (auth.currentUser) {
+            newOrders.forEach(o => {
+                if (!knownOrderIds.has(o.id) && knownOrderIds.size > 0) {
+                    sendBrowserNotification('طلب جديد 📦', `طلب من ${o.name || 'زبون'}`);
+                }
+            });
+        }
+        newOrders.forEach(o => knownOrderIds.add(o.id));
+
+        orders = newOrders;
+        computeSalesCounts();
         checkUserOrderStatus();
         renderMyOrders();
+        renderProducts();
         if (auth.currentUser) renderOrders();
     }, err => console.error('orders listener error:', err));
 
@@ -330,6 +494,7 @@ function setupFirestoreListeners() {
             newMessages.forEach(m => {
                 if (m.sender === 'user' && !knownChatMessageIds.has(m.id) && knownChatMessageIds.size > 0) {
                     showNotification(`رسالة جديدة من الزبون: ${m.name || 'غير معروف'}`, 'info');
+                    sendBrowserNotification('رسالة جديدة 💬', `من: ${m.name || 'زبون'}`);
                 }
             });
         }
@@ -413,7 +578,7 @@ function renderSiteNotifications() {
     area.innerHTML = visible.map(n => n ? `
         <div class="site-notice notice-${n.type || 'info'}">
             <span>🔔 ${n.message || ''}</span>
-            <i class="fa-solid fa-xmark" onclick="dismissNotification('${n.id}')"></i>
+            <i class="fa-solid fa-xmark" onclick="dismissNotification('${n.id}')" role="button" tabindex="0" aria-label="إغلاق التنبيه"></i>
         </div>
     ` : '').join('');
 }
@@ -532,7 +697,7 @@ function renderCategories() {
     if (adminCatList) {
         adminCatList.innerHTML = categories.filter(c => c !== 'الكل').map(cat => `
             <span class="tag" style="background:#eee; padding:4px 10px; border-radius:15px; display:inline-block; margin:3px;">
-                ${cat} <i class="fa-solid fa-xmark" style="color:red; cursor:pointer;" onclick="deleteCategory('${cat}')"></i>
+                ${cat} <i class="fa-solid fa-xmark" style="color:red; cursor:pointer;" onclick="deleteCategory('${cat}')" role="button" tabindex="0" aria-label="حذف قسم ${cat}"></i>
             </span>
         `).join('');
     }
@@ -562,8 +727,11 @@ function deleteCategory(cat) {
 
 function filterProducts(cat) {
     currentCategory = cat;
+    currentSort = 'default';
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) sortSelect.value = 'default';
     renderCategories();
-    renderProducts();
+    loadCategoryProducts(cat);
 }
 
 function handleSearch(value) {
@@ -622,7 +790,7 @@ function renderImagePreviews() {
     box.innerHTML = tempImages.map((img, i) => `
         <div class="img-preview-item">
             <img src="${img}" alt="معاينة">
-            <span class="remove-preview-img" onclick="removeTempImage(${i})">&times;</span>
+            <span class="remove-preview-img" onclick="removeTempImage(${i})" role="button" tabindex="0" aria-label="حذف الصورة">&times;</span>
         </div>
     `).join('');
 }
@@ -639,7 +807,7 @@ function getProductImages(p) {
 }
 
 /* ==========================================
-   عرض المنتجات (تقييم + مشاركة)
+   عرض المنتجات (تقييم + مشاركة + الأكثر مبيعاً)
    ========================================== */
 function renderProducts() {
     const grid = document.getElementById('products-grid');
@@ -664,6 +832,7 @@ function renderProducts() {
         const isAvailable = p.available !== false;
         const mainImg = getProductImages(p)[0];
         const rating = getProductRating(p.id);
+        const bestSeller = isBestSeller(p.id);
 
         return `
             <div class="product-card">
@@ -674,17 +843,18 @@ function renderProducts() {
                 <div class="product-info">
                     <span class="product-category-tag">${p.category || ''}</span>
                     <h3 onclick="openProductDetails('${p.id}')" style="cursor:pointer;">${p.name || ''}</h3>
+                    ${bestSeller ? `<div style="font-size:0.75rem; color:#e67e22; font-weight:bold; margin-bottom:3px;">🔥 الأكثر مبيعاً</div>` : ''}
                     ${rating ? `<div style="font-size:0.8rem; color:#f39c12; margin-bottom:4px;">⭐ ${rating.avg} (${rating.count})</div>` : ''}
                     <div class="price">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
                     <div style="display:flex; gap:6px;">
-                        <button class="btn-gold" style="flex:1;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
-                            <i class="fa-solid fa-cart-plus"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر'}
+                        <button class="btn-gold" style="flex:1;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'} aria-label="إضافة ${p.name || ''} للسلة">
+                            <i class="fa-solid fa-cart-plus" aria-hidden="true"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر'}
                         </button>
-                        <button class="btn-action" style="padding:8px 10px;" onclick="openProductDetails('${p.id}')">
-                            <i class="fa-solid fa-eye"></i>
+                        <button class="btn-action" style="padding:8px 10px;" onclick="openProductDetails('${p.id}')" aria-label="عرض تفاصيل ${p.name || ''}">
+                            <i class="fa-solid fa-eye" aria-hidden="true"></i>
                         </button>
-                        <button class="btn-action" style="padding:8px 10px;" onclick="shareProduct('${p.id}')">
-                            <i class="fa-solid fa-share-nodes"></i>
+                        <button class="btn-action" style="padding:8px 10px;" onclick="shareProduct('${p.id}')" aria-label="مشاركة ${p.name || ''}">
+                            <i class="fa-solid fa-share-nodes" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>
@@ -713,6 +883,7 @@ function openProductDetails(id) {
     const images = getProductImages(p);
     const isAvailable = p.available !== false;
     const rating = getProductRating(p.id);
+    const bestSeller = isBestSeller(p.id);
 
     body.innerHTML = `
         <img id="detail-main-img" src="${images[0]}" style="width:100%; max-height:320px; object-fit:contain; border-radius:8px; background:#f8f9fa;">
@@ -721,17 +892,18 @@ function openProductDetails(id) {
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <span class="product-category-tag">${p.category || ''}</span>
-            <button class="btn-action" style="padding:5px 10px; font-size:0.8rem;" onclick="shareProduct('${p.id}')">
-                <i class="fa-solid fa-share-nodes"></i> مشاركة
+            <button class="btn-action" style="padding:5px 10px; font-size:0.8rem;" onclick="shareProduct('${p.id}')" aria-label="مشاركة المنتج">
+                <i class="fa-solid fa-share-nodes" aria-hidden="true"></i> مشاركة
             </button>
         </div>
         <span class="stock-badge ${isAvailable ? 'in-stock' : 'out-stock'}" style="position:static; display:inline-block; margin-right:6px; margin-top:8px;">${isAvailable ? 'متوفر' : 'غير متوفر'}</span>
+        ${bestSeller ? `<span style="font-size:0.8rem; color:#e67e22; font-weight:bold; margin-right:6px;">🔥 الأكثر مبيعاً</span>` : ''}
         <h2 style="margin:8px 0; color:var(--primary-color); font-size:1.2rem;">${p.name || ''}</h2>
         ${rating ? `<div style="font-size:0.95rem; color:#f39c12; margin-bottom:6px;">⭐ ${rating.avg} من 5 (${rating.count} تقييم)</div>` : '<div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">لا توجد تقييمات بعد</div>'}
-        <p style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap; font-size:0.9rem;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
+        <p class="product-desc-text" style="margin:10px 0; color:var(--text-muted); line-height:1.8; white-space: pre-wrap; font-size:0.9rem;">${p.description ? p.description : 'لا يوجد وصف تفصيلي لهذا المنتج.'}</p>
         <div class="price" style="font-size:1.3rem;">${(p.price || 0).toLocaleString('ar-IQ')} د.ع</div>
         <button class="btn-gold" style="width:100%; margin-top:10px;" onclick="addToCart('${p.id}')" ${isAvailable ? '' : 'disabled'}>
-            <i class="fa-solid fa-cart-plus"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر حالياً'}
+            <i class="fa-solid fa-cart-plus" aria-hidden="true"></i> ${isAvailable ? 'إضافة للسلة' : 'غير متوفر حالياً'}
         </button>
     `;
     toggleModal('product-detail-modal');
@@ -764,6 +936,14 @@ function toggleModal(modalId) {
 
     document.body.classList.toggle('modal-open', isAnyModalOpen());
 
+    if (opening) {
+        lastFocusedElement = document.activeElement;
+        const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]');
+        if (focusable) focusable.focus();
+    } else if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+    }
+
     if (modalId === 'cart-modal') renderCartModal();
     if (modalId === 'my-orders-modal') renderMyOrders();
     if (modalId === 'user-notif-modal') {
@@ -789,7 +969,7 @@ function renderCartModal() {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span>${item.name || ''}</span>
                     <b>${(item.price || 0).toLocaleString('ar-IQ')} د.ع</b>
-                    <button class="btn-danger" style="padding:2px 6px;" onclick="removeFromCart(${index})">X</button>
+                    <button class="btn-danger" style="padding:2px 6px;" onclick="removeFromCart(${index})" aria-label="حذف ${item.name || ''} من السلة">X</button>
                 </div>
             `;
         }).join('');
@@ -889,6 +1069,7 @@ function showAdminControls() {
     if (notifBtn) notifBtn.classList.remove('hidden');
     if (panel) panel.classList.remove('hidden');
 
+    updatePushToggleUI();
     loadAllProductsForAdmin();
     renderOrders();
     renderAdminChat();
@@ -908,9 +1089,10 @@ function logoutAdmin() {
         if (panel) panel.classList.add('hidden');
         showNotification("تم الخروج وإخفاء لوحة التحكم.", 'info');
 
+        currentSort = 'default';
         lastVisibleDoc = null;
         allProductsLoaded = false;
-        loadInitialProducts();
+        loadCategoryProducts(currentCategory);
     }).catch(err => console.error(err));
 }
 
@@ -955,7 +1137,7 @@ function createOrderBoxHTML(o, isCompleted) {
     let itemsHtml = Array.isArray(o.items) ? o.items.map(i => i ? i.name : '').join(' ، ') : '';
     return `
         <div class="order-box" style="background:#fff; border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:8px; position:relative;">
-            <button onclick="deleteOrder('${o.id}')" title="حذف الطلب نهائياً" style="position:absolute; top:10px; left:10px; background:#e74c3c; color:#fff; border:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>
+            <button onclick="deleteOrder('${o.id}')" title="حذف الطلب نهائياً" aria-label="حذف الطلب نهائياً" style="position:absolute; top:10px; left:10px; background:#e74c3c; color:#fff; border:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font-weight:bold;">✕</button>
             <div style="display:flex; justify-content:space-between; align-items:center; padding-left:30px;">
                 <h4>طلب من: ${o.name || ''} (${o.phone || ''})</h4>
                 <span style="font-size:0.8rem; background:#eee; padding:2px 8px; border-radius:4px;">${o.date || ''}</span>
@@ -1013,11 +1195,13 @@ function handleAddProduct(e) {
     const name = document.getElementById('p-name').value;
     const price = parseFloat(document.getElementById('p-price').value);
     const category = document.getElementById('p-category').value;
+    const supplierEl = document.getElementById('p-supplier');
+    const supplier = supplierEl ? supplierEl.value.trim() : '';
     const descEl = document.getElementById('p-description');
     const description = descEl ? descEl.value.trim() : '';
 
     if (editingProductId) {
-        const updateData = { name, price, category, description };
+        const updateData = { name, price, category, description, supplier };
         if (tempImages.length) updateData.images = [...tempImages];
 
         productsCol.doc(editingProductId).update(updateData).then(() => {
@@ -1031,6 +1215,7 @@ function handleAddProduct(e) {
             price,
             category,
             description,
+            supplier,
             images: tempImages.length ? [...tempImages] : ['https://via.placeholder.com/200'],
             available: true,
             order: Date.now()
@@ -1052,6 +1237,9 @@ function startEditProduct(id) {
     document.getElementById('p-name').value = p.name || '';
     document.getElementById('p-price').value = p.price || '';
     document.getElementById('p-category').value = p.category || categories[1] || '';
+
+    const supplierEl = document.getElementById('p-supplier');
+    if (supplierEl) supplierEl.value = p.supplier || '';
 
     const descEl = document.getElementById('p-description');
     if (descEl) descEl.value = p.description || '';
@@ -1101,11 +1289,12 @@ function renderAdminList() {
                     <span style="font-size:0.75rem; color:${isAvailable ? 'var(--success-color)' : 'var(--danger-color)'}; font-weight:bold;">
                         ${isAvailable ? '● متوفر' : '● غير متوفر'}
                     </span>
+                    ${p.supplier ? `<span style="font-size:0.7rem; color:#8e44ad; margin-right:6px;">🏭 ${p.supplier}</span>` : ''}
                 </span>
                 <div>
                     <button class="btn-action" style="padding:3px 8px; background:#f39c12; color:#fff;" onclick="startEditProduct('${p.id}')">تعديل ✏️</button>
-                    <button onclick="moveProduct('${p.id}', -1)">▲</button>
-                    <button onclick="moveProduct('${p.id}', 1)">▼</button>
+                    <button onclick="moveProduct('${p.id}', -1)" aria-label="تحريك ${p.name || ''} لأعلى">▲</button>
+                    <button onclick="moveProduct('${p.id}', 1)" aria-label="تحريك ${p.name || ''} لأسفل">▼</button>
                     <button class="${isAvailable ? 'btn-danger' : 'btn-success'}" onclick="toggleAvailability('${p.id}')">
                         ${isAvailable ? 'إيقاف' : 'تفعيل'}
                     </button>

@@ -6,9 +6,9 @@
     --bg-light: #f4f6f9;
     --card-bg: #ffffff;
     --text-dark: #2c3e50;
-    --text-muted: #7f8c8d;
-    --success-color: #27ae60;
-    --danger-color: #e74c3c;
+    --text-muted: #5f6b6d;
+    --success-color: #1f8b4c;
+    --danger-color: #c0392b;
     --border-radius: 12px;
     --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
@@ -47,6 +47,30 @@ body.modal-open {
     padding: 40px 0;
     color: var(--text-muted);
     font-size: 1rem;
+}
+
+/* الخطوط */
+h1, h2, h3,
+.price,
+.logo-area h1 {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.product-desc-text,
+.chat-body,
+.msg {
+    font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* إمكانية الوصول: تركيز واضح بلوحة المفاتيح */
+button:focus-visible,
+.cat-btn:focus-visible,
+.icon-btn:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 2px;
 }
 
 /* ==========================================
@@ -192,7 +216,7 @@ body.modal-open {
 
 .cat-btn.active, .cat-btn:hover {
     background: var(--accent-gold);
-    color: #fff;
+    color: var(--primary-color);
 }
 
 /* ==========================================
@@ -228,15 +252,15 @@ body.modal-open {
 .product-img-wrap {
     position: relative;
     width: 100%;
-    height: 180px;
-    background: #f8fafc;
+    height: 200px;
+    background: #ffffff;
     overflow: hidden;
 }
 
 .product-img-wrap img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     transition: transform 0.3s;
 }
 
@@ -298,7 +322,7 @@ body.modal-open {
    ========================================== */
 .btn-gold {
     background: var(--accent-gold);
-    color: #fff;
+    color: var(--primary-color);
     border: none;
     padding: 10px 15px;
     border-radius: 8px;
@@ -491,28 +515,19 @@ body.modal-open {
 }
 
 .close-btn {
-    position: fixed;
-    left: 12px;
-    top: 12px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    font-weight: bold;
-    color: #fff;
-    background: var(--danger-color);
-    border-radius: 50%;
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    font-size: 1.5rem;
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    color: #444;
+    background: none;
+    border: none;
+    padding: 4px;
     line-height: 1;
-    z-index: 5;
 }
 
-.close-btn:hover {
-    background: #c0392b;
-}
+.close-btn:hover { color: #000; }
 
 .cart-summary-row p, .cart-summary-row h3 {
     margin: 6px 0;
@@ -581,6 +596,7 @@ body.modal-open {
     padding: 12px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
 }
 
 .chat-body {
@@ -598,7 +614,7 @@ body.modal-open {
 }
 
 .bot-msg { background: #e9ecef; color: #333; float: right; clear: both; }
-.user-msg { background: var(--accent-gold); color: white; float: left; clear: both; }
+.user-msg { background: var(--accent-gold); color: var(--primary-color); float: left; clear: both; }
 
 .chat-footer {
     display: flex;

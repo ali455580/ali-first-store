@@ -520,14 +520,14 @@ textarea:focus-visible {
     top: 15px;
     font-size: 1.5rem;
     cursor: pointer;
-    color: #444;
+    color: var(--danger-color);
     background: none;
     border: none;
     padding: 4px;
     line-height: 1;
 }
 
-.close-btn:hover { color: #000; }
+.close-btn:hover { color: #922b21; }
 
 .cart-summary-row p, .cart-summary-row h3 {
     margin: 6px 0;

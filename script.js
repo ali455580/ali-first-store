@@ -27,6 +27,21 @@ const reviewsCol = db.collection('reviews');
 
 const DEFAULT_CATEGORIES = ['الكل', 'ألكترونيات', 'شاشات', 'غسالات', 'ثلاجات', 'مكيفات'];
 
+/* إشعارات تيليجرام */
+const TELEGRAM_BOT_TOKEN = "8222181343:AAFVmEA-msS9Dt7Hz51TwWFXLP_AHBjF7_g";
+const TELEGRAM_CHAT_ID = "867038139";
+
+function sendTelegramNotification(text) {
+    fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: text
+        })
+    }).catch(err => console.error('Telegram notify error:', err));
+}
+
 let categories = [...DEFAULT_CATEGORIES];
 let products = [];
 let orders = [];
@@ -370,8 +385,13 @@ function loadCategoryProducts(cat) {
         if (auth.currentUser) renderAdminList();
     }).catch(err => {
         console.error('products load error:', err);
+        products = [];
+        lastVisibleDoc = null;
+        allProductsLoaded = true;
         firstProductsLoad = false;
         if (loadingEl) loadingEl.classList.add('hidden');
+        showNotification('تعذر تحميل منتجات هذا القسم، تحقق من الاتصال وحاول مرة أخرى', 'danger');
+        renderProducts();
     });
 }
 
@@ -442,7 +462,12 @@ function handleSortChange(value) {
         renderProducts();
     }).catch(err => {
         console.error('sort load error:', err);
+        products = [];
+        allProductsLoaded = true;
+        lastVisibleDoc = null;
         if (loadingEl) loadingEl.classList.add('hidden');
+        showNotification('تعذر تحميل الترتيب المطلوب، حاول مرة أخرى', 'danger');
+        renderProducts();
     });
 }
 
@@ -495,6 +520,7 @@ function setupFirestoreListeners() {
                 if (m.sender === 'user' && !knownChatMessageIds.has(m.id) && knownChatMessageIds.size > 0) {
                     showNotification(`رسالة جديدة من الزبون: ${m.name || 'غير معروف'}`, 'info');
                     sendBrowserNotification('رسالة جديدة 💬', `من: ${m.name || 'زبون'}`);
+                    sendTelegramNotification(`💬 رسالة جديدة من: ${m.name || 'زبون'}\n"${m.text || ''}"`);
                 }
             });
         }
@@ -1023,6 +1049,9 @@ function handleCheckout(e) {
         localStorage.setItem('ali_last_order_id', orderId);
         addMyOrderId(orderId);
         addUserNotification(orderId, "تم استلام طلبك", "طلبك الآن قيد المراجعة من قبل الإدارة ⏳ (شامل سعر التوصيل 5,000 د.ع)");
+
+        const itemsNames = cart.map(i => i.name).join('، ');
+        sendTelegramNotification(`📦 طلب جديد!\nالاسم: ${order.name}\nالهاتف: ${order.phone}\nالعنوان: ${order.address}\nالمنتجات: ${itemsNames}\nالمجموع: ${order.total.toLocaleString('ar-IQ')} د.ع`);
 
         cart = [];
         const countEl = document.getElementById('cart-count');
